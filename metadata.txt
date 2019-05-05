@@ -11,7 +11,7 @@ name=GooGIS
 qgisMinimumVersion=3.0
 #qgisMaximumVersion=3.99
 description=a Google Drive data provider for QGIS
-version=1
+version=1.0
 author=Enrico Ferreguti
 email=enricofer@gmail.com
 about= GooGIS is an experimental plugin derivated from pseudo_csv_provider by @g-sherman. It keeps syncronization between a local memory layer and a remote google drive sheet and provides a simple peer to peer cloud environment for sharing and editing geospatial contents with other users. It’s only required a valid Google account.
@@ -21,10 +21,10 @@ about= GooGIS is an experimental plugin derivated from pseudo_csv_provider by @g
 # Recommended items:
 
 # Uncomment the following line and add your changelog:
-changelog=licence and terms of service agreement
+changelog=v1.0 QGIS3 code migration
 
 # Tags are comma separated with spaces allowed
-tags=vector
+tags=vector,google,goggle drive, google spreadsheet, custom provider
 
 homepage=https://github.com/enricofer/gdrive_provider
 tracker=https://github.com/enricofer/gdrive_provider/issues
