@@ -29,7 +29,10 @@ import logging
 
 from six.moves.urllib.parse import urlencode
 
-from googleapiclient import __version__
+#from .googleapiclient import __version__
+
+__version__ = "1.7.8"
+
 from googleapiclient.errors import HttpError
 
 

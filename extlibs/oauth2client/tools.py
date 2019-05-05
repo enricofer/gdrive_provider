@@ -25,9 +25,6 @@ import logging
 import socket
 import sys
 
-if not hasattr(sys, 'argv'):
-    sys.argv  = ['']
-
 from six.moves import BaseHTTPServer
 from six.moves import http_client
 from six.moves import input
@@ -82,7 +79,8 @@ def _CreateArgumentParser():
         import argparse
     except ImportError:  # pragma: NO COVER
         return None
-    parser = argparse.ArgumentParser(add_help=False)
+    import argparse
+    parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument('--auth_host_name', default='localhost',
                         help='Hostname when running a local web server.')
     parser.add_argument('--noauth_local_webserver', action='store_true',
@@ -95,10 +93,12 @@ def _CreateArgumentParser():
         help='Set the logging level of detail.')
     return parser
 
+
 # argparser is an ArgumentParser that contains command-line options expected
 # by tools.run(). Pass it in as part of the 'parents' argument to your own
 # ArgumentParser.
-argparser =  _CreateArgumentParser()
+
+argparser = _CreateArgumentParser()
 
 
 class ClientRedirectServer(BaseHTTPServer.HTTPServer):

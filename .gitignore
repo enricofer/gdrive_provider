@@ -7,3 +7,4 @@ sample/
 .DS_Store
 temp/*
 test/*
+credentials/*.json

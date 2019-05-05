@@ -8,10 +8,10 @@
 
 [general]
 name=GooGIS
-qgisMinimumVersion=2.18
-qgisMaximumVersion=2.90
+qgisMinimumVersion=3.0
+#qgisMaximumVersion=3.99
 description=a Google Drive data provider for QGIS
-version=0.9.0
+version=1
 author=Enrico Ferreguti
 email=enricofer@gmail.com
 about= GooGIS is an experimental plugin derivated from pseudo_csv_provider by @g-sherman. It keeps syncronization between a local memory layer and a remote google drive sheet and provides a simple peer to peer cloud environment for sharing and editing geospatial contents with other users. It’s only required a valid Google account.
@@ -29,10 +29,10 @@ tags=vector
 homepage=https://github.com/enricofer/gdrive_provider
 tracker=https://github.com/enricofer/gdrive_provider/issues
 repository=https://github.com/enricofer/gdrive_provider
-category=Vector
+# category=Vector
 icon=icon.png
 # experimental flag
-experimental=True
+experimental=False
 
 # deprecated flag (applies to the whole plugin, not just a single version)
 deprecated=False

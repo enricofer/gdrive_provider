@@ -20,15 +20,17 @@
  *                                                                         *
  ***************************************************************************/
 """
+from __future__ import print_function
 
 import os
 import webbrowser
 
-from PyQt4 import QtGui, QtCore, uic
-from PyQt4.QtGui import QListWidgetItem, QIcon
-from PyQt4.QtCore import Qt
-from qgis.gui import QgsMapLayerComboBox, QgsMapLayerProxyModel
-from qgis.core import QgsMapLayer, QgsNetworkAccessManager
+from qgis.PyQt import QtWidgets, QtGui, QtCore, uic
+from qgis.PyQt.QtWidgets import QListWidgetItem
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import Qt
+from qgis.gui import QgsMapLayerComboBox
+from qgis.core import QgsMapLayer, QgsNetworkAccessManager, QgsMapLayerProxyModel
 
 FORM_CLASS1, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'gdrive_provider_dialog_base.ui'))
@@ -53,7 +55,7 @@ try:
 except:
     None
     
-class GoogleDriveProviderDialog(QtGui.QDialog, FORM_CLASS1):
+class GoogleDriveProviderDialog(QtWidgets.QDialog, FORM_CLASS1):
     def __init__(self, parent=None):
         """Constructor."""
         super(GoogleDriveProviderDialog, self).__init__(parent)
@@ -65,7 +67,7 @@ class GoogleDriveProviderDialog(QtGui.QDialog, FORM_CLASS1):
         self.setupUi(self)
 
 
-class accountDialog(QtGui.QDialog, FORM_CLASS2):
+class accountDialog(QtWidgets.QDialog, FORM_CLASS2):
     def __init__(self, parent=None, account='', error=None):
         """Constructor."""
         super(accountDialog, self).__init__(parent)
@@ -141,7 +143,7 @@ class accountDialog(QtGui.QDialog, FORM_CLASS2):
             return None
 
 
-class comboDialog(QtGui.QDialog, FORM_CLASS3):
+class comboDialog(QtWidgets.QDialog, FORM_CLASS3):
     def __init__(self,layerMap , parent=None, current=None):
         """Constructor."""
         super(comboDialog, self).__init__(parent)
@@ -152,8 +154,9 @@ class comboDialog(QtGui.QDialog, FORM_CLASS3):
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
         self.comboBox.clear()
-        print "current",current
-        for layerName,layer in layerMap.iteritems():
+        # fix_print_with_import
+        print("current",current)
+        for layerName,layer in layerMap.items():
             if layer.type() == QgsMapLayer.VectorLayer:
                 self.comboBox.addItem(layer.name(),layer)
         if current:
@@ -186,7 +189,7 @@ class comboDialog(QtGui.QDialog, FORM_CLASS3):
             return None
 
 
-class importFromIdDialog(QtGui.QDialog, FORM_CLASS4):
+class importFromIdDialog(QtWidgets.QDialog, FORM_CLASS4):
     def __init__(self, parent=None, layer=''):
         """Constructor."""
         super(importFromIdDialog, self).__init__(parent)
@@ -234,7 +237,7 @@ class importFromIdDialog(QtGui.QDialog, FORM_CLASS4):
             return None
 
 
-class internalBrowser(QtGui.QDialog, FORM_CLASS5):
+class internalBrowser(QtWidgets.QDialog, FORM_CLASS5):
     def __init__(self, target = '', title = '', parent = None):
         """Constructor."""
         super(internalBrowser, self).__init__(parent)
@@ -249,7 +252,7 @@ class internalBrowser(QtGui.QDialog, FORM_CLASS5):
         self.webView.setUrl(QtCore.QUrl(target))
 
 
-class webMapDialog(QtGui.QDialog, FORM_CLASS6):
+class webMapDialog(QtWidgets.QDialog, FORM_CLASS6):
     def __init__(self,availableMaps, parent=None):
         """Constructor."""
         super(webMapDialog, self).__init__(parent)
@@ -262,7 +265,7 @@ class webMapDialog(QtGui.QDialog, FORM_CLASS6):
         self.availableMaps = availableMaps
         self.buttonBox.accepted.connect(self.acceptedAction)
         self.buttonBox.rejected.connect(self.rejectedAction)
-        for map_name, map_metadata in availableMaps.iteritems():
+        for map_name, map_metadata in availableMaps.items():
             permissions = self.get_permissions(map_metadata)
             if "anyone" in permissions:
                 publicMapItem = QListWidgetItem(QIcon(os.path.join(os.path.dirname(__file__),'globe.png')),map_name,self.publicWebMapsList, QListWidgetItem.UserType)

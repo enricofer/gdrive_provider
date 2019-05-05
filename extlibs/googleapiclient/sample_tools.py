@@ -23,14 +23,10 @@ __all__ = ['init']
 
 
 import argparse
-import httplib2
 import os
 
 from googleapiclient import discovery
-from oauth2client import client
-from oauth2client import file
-from oauth2client import tools
-
+from googleapiclient.http import build_http
 
 def init(argv, name, version, doc, filename, scope=None, parents=[], discovery_filename=None):
   """A common initialization routine for samples.
@@ -56,6 +52,13 @@ def init(argv, name, version, doc, filename, scope=None, parents=[], discovery_f
     A tuple of (service, flags), where service is the service object and flags
     is the parsed command-line flags.
   """
+  try:
+      from oauth2client import client
+      from oauth2client import file
+      from oauth2client import tools
+  except ImportError:
+      raise ImportError('googleapiclient.sample_tools requires oauth2client. Please install oauth2client and try again.')
+
   if scope is None:
     scope = 'https://www.googleapis.com/auth/' + name
 
@@ -88,7 +91,7 @@ def init(argv, name, version, doc, filename, scope=None, parents=[], discovery_f
   credentials = storage.get()
   if credentials is None or credentials.invalid:
     credentials = tools.run_flow(flow, storage, flags)
-  http = credentials.authorize(http = httplib2.Http())
+  http = credentials.authorize(http=build_http())
 
   if discovery_filename is None:
     # Construct a service object via the discovery service.

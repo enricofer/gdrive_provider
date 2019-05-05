@@ -1,14 +1,17 @@
+from __future__ import print_function
+from builtins import str
+from builtins import range
 from qgis.core import *
 from qgis.utils import iface
 import os
 import re
 import codecs
 import json
-from PyQt4.QtCore import *
-from PyQt4.QtGui import QColor, QImage, QPixmap, QPainter
+from PyQt5.QtCore import *
+from qgis.PyQt.QtGui import QColor, QImage, QPixmap, QPainter
 import math
 from collections import OrderedDict
-from processing import dataobjects
+#from processing import dataobjects
 
 def qgisLayers():
     return [lay for lay in iface.mapCanvas().layers() if lay.type() == lay.VectorLayer]
@@ -60,8 +63,8 @@ def createLayers(folder, _layers):
 
 def saveSprites(folder, sprites):
     if folder and sprites:
-        height = max([s.height() for s,s2x in sprites.values()])
-        width = sum([s.width() for s,s2x in sprites.values()])
+        height = max([s.height() for s,s2x in list(sprites.values())])
+        width = sum([s.width() for s,s2x in list(sprites.values())])
         img = QImage(width, height, QImage.Format_ARGB32)
         img.fill(QColor(Qt.transparent))
         img2x = QImage(width * 2, height * 2, QImage.Format_ARGB32)
@@ -73,7 +76,7 @@ def saveSprites(folder, sprites):
         spritesheet = {}
         spritesheet2x = {}
         x = 0
-        for name, sprites in sprites.iteritems():
+        for name, sprites in sprites.items():
             s, s2x = sprites
             painter.drawImage(x, 0, s)
             painter2x.drawImage(x * 2, 0, s2x)
@@ -200,7 +203,7 @@ def _convertSymbologyForLayerType(symbols, functionType, layerType, attribute):
     if layerType == "symbol":
         if not isinstance(symbols, OrderedDict):
             symbols = {symbols}
-        for symbol in symbols.values():
+        for symbol in list(symbols.values()):
             sl = symbol.symbolLayer(0).clone()
             sl2x = symbol.symbolLayer(0).clone()
             sl2x.setSize(sl2x.size() * 2)
@@ -240,7 +243,7 @@ def _setPaintProperty(paint, property, obj, func, funcType, attribute):
         d = {}
         d["property"] = attribute
         d["stops"] = []
-        for k,v in obj.iteritems():
+        for k,v in obj.items():
             if v.symbolLayerCount() > 0:
                 d["stops"].append([k, func(v)])
         d["type"] = funcType
@@ -262,7 +265,7 @@ def _getLayerType(qgisLayer, symbol):
         # Limitation:
         # We take the first symbol if there are categories, and assume all categories use similar renderer
         if isinstance(symbol, OrderedDict):
-            symbol = symbol.values()[0]
+            symbol = list(symbol.values())[0]
         if isinstance(symbol.symbolLayer(0), QgsSvgMarkerSymbolLayerV2):
             return "symbol"
         else:
@@ -303,9 +306,10 @@ def processLayer(qgisLayer):
         sprites, layer["paint"] = _convertSymbologyForLayerType(symbols, functionType, layer["type"], prop)
         allSprites.update(sprites)
         
-    except Exception, e:
+    except Exception as e:
         import traceback
-        print traceback.format_exc()
+        # fix_print_with_import
+        print(traceback.format_exc())
         return {}, []
 
     layers.append(layer)
@@ -444,7 +448,7 @@ def _svgMarkerSymbol(name, sprites):
     symbol.deleteSymbolLayer(0)
     return symbol
 
-layerTypes = {QGis.Point: ["circle", "symbol"], QGis.Line: ["line"], QGis.Polygon: ["fill"]}
+layerTypes = {QgsWkbTypes.PointGeometry: ["circle", "symbol"], QgsWkbTypes.LineGeometry: ["line"], QgsWkbTypes.PolygonGeometry: ["fill"]}
 
 def setLayerSymbologyFromMapboxStyle(layer, style, sprites):
     if style["type"] not in layerTypes[layer.geometryType()]:
