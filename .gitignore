@@ -7,4 +7,6 @@ sample/
 .DS_Store
 temp/*
 test/*
-credentials/*.json
+credentials/*plugin.json
+credentials/*plugin'.json
+credentials/bak/

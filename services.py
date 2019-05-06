@@ -41,6 +41,7 @@ from qgis.core import QgsMessageLog, NULL
 
 #Standard modules
 import httplib2
+import httplib2shim
 import os
 import io
 import csv
@@ -75,7 +76,7 @@ def int_to_a1(n):
 class google_authorization(object):
     def __init__(self, parentClass, scopes, credential_dir, application_name, client_id, client_secret_file = 'client_secret.json' ):
         # fix_print_with_import
-        print("authorizing:",client_id)
+        print("authorizing:",client_id, application_name, credential_dir)
         self.parent = parentClass
         self.credential_dir = os.path.abspath(credential_dir)
         if not os.path.exists(credential_dir):
@@ -137,11 +138,14 @@ class google_authorization(object):
         proxyPort = s.value("proxy/proxyPort", "" )
         proxyUser = s.value("proxy/proxyUser", "" )
         proxyPassword = s.value("proxy/proxyPassword", "" )
+        print ("proxySettings",proxyEnabled,proxyType)
         if proxyEnabled == "true" and proxyType == 'HttpProxy': # test if there are proxy settings
-            proxyConf = httplib2.ProxyInfo(httplib2.socks.PROXY_TYPE_HTTP, proxyHost, int(proxyPort), proxy_user = proxyUser, proxy_pass = proxyPassword)
+            proxyConf = httplib2.ProxyInfo(httplib2.socks.PROXY_TYPE_HTTP_NO_TUNNEL, proxyHost, int(proxyPort), proxy_user = proxyUser, proxy_pass = proxyPassword)
         else:
             proxyConf =  None
-        self.httpConnection = httplib2.Http(proxy_info = proxyConf, ca_certs=os.path.join(self.credential_dir,'cacerts.txt'))
+        print ("proxyConf",proxyConf)
+        #print(os.environ)
+        self.httpConnection = httplib2shim.Http( ca_certs=os.path.join(self.credential_dir,'cacerts.txt'), timeout=5) #proxy_info = proxyConf,
         auth = self.get_credentials()
         if auth:
             return auth.authorize(self.httpConnection)
