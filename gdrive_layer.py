@@ -136,6 +136,7 @@ class GoogleDriveLayer(QObject):
             self.spreadsheet_id = spreadsheet_id
             self.service_sheet = service_spreadsheet(authorization, self.spreadsheet_id)
         elif importing_layer:
+            print("MAPBOX STYLE",self.layer_style_to_json(importing_layer))
             layer_as_list = self.qgis_layer_to_list(importing_layer)
             self.service_sheet = service_spreadsheet(authorization, new_sheet_name=importing_layer.name(), new_sheet_data = layer_as_list)
             self.spreadsheet_id = self.service_sheet.spreadsheetId
@@ -219,6 +220,10 @@ class GoogleDriveLayer(QObject):
         #self.iface.legendInterface().addLegendLayerAction(self.sync_with_google_drive_action, "","01", QgsMapLayer.VectorLayer,False)
         #self.iface.legendInterface().addLegendLayerActionForLayer(self.sync_with_google_drive_action, lyr)
         #self.sync_with_google_drive_action.triggered.connect(self.sync_with_google_drive)
+        self.sync_with_google_drive_action = QAction(QIcon(os.path.join(self.parent.plugin_dir,'sync.png')), "Sync with Google drive", self.iface )
+        self.iface.addCustomActionForLayer(self.sync_with_google_drive_action, lyr)
+        self.sync_with_google_drive_action.triggered.connect(self.sync_with_google_drive)
+
         lyr.gDriveInterface = self
 
     def add_records(self):
@@ -768,7 +773,8 @@ class GoogleDriveLayer(QObject):
         row = ["WKTGEOMETRY","STATUS","FEATUREID"]
         for feat in qgis_layer.getFeatures():
             for field in feat.fields().toList():
-                row.append(str(field.name()).encode("utf-8"))# slugify(field.name())
+                row.append(field.name())
+                #row.append(str(field.name()).encode("utf-8"))# slugify(field.name())
             break
         rows = [row]
         for feat in qgis_layer.getFeatures():
@@ -783,7 +789,7 @@ class GoogleDriveLayer(QObject):
                     content = "()"
                 else:
                     if type(feat[field.name()]) == str:
-                        content = feat[field.name()].encode("utf-8")
+                        content = feat[field.name()] #feat[field.name()].encode("utf-8")
                     elif field.typeName() in ('Date', 'Time'):
                         content = feat[field.name()].toString(format = Qt.ISODate)
                     else:
@@ -815,7 +821,9 @@ class GoogleDriveLayer(QObject):
         XMLStyleNode = XMLDocument.createElement("style")
         XMLDocument.appendChild(XMLStyleNode)
         error = None
-        qgis_layer.writeSymbology(XMLStyleNode, XMLDocument, error)
+        rw_context = QgsReadWriteContext()
+        rw_context.setPathResolver( QgsProject.instance().pathResolver() )
+        qgis_layer.writeSymbology(XMLStyleNode, XMLDocument, error,rw_context)
         xmldoc = XMLDocument.toString(1)
         return xmldoc
 

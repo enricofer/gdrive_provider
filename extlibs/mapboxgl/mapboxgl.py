@@ -207,10 +207,10 @@ def _convertSymbologyForLayerType(symbols, functionType, layerType, attribute):
             sl = symbol.symbolLayer(0).clone()
             sl2x = symbol.symbolLayer(0).clone()
             sl2x.setSize(sl2x.size() * 2)
-            newSymbol = QgsMarkerSymbolV2()
+            newSymbol = QgsMarkerSymbol()
             newSymbol.appendSymbolLayer(sl)
             newSymbol.deleteSymbolLayer(0)
-            newSymbol2x = QgsMarkerSymbolV2()
+            newSymbol2x = QgsMarkerSymbol()
             newSymbol2x.appendSymbolLayer(sl2x)
             newSymbol2x.deleteSymbolLayer(0)
             img = newSymbol.asImage(QSize(sl.size(), sl.size()))
@@ -257,16 +257,16 @@ def _setPaintProperty(paint, property, obj, func, funcType, attribute):
             paint[property] = v
 
 def _getLayerType(qgisLayer, symbol):
-    if qgisLayer.geometryType() == QGis.Line:
+    if qgisLayer.geometryType() ==  QgsWkbTypes.LineGeometry:
         return "line"
-    if qgisLayer.geometryType() == QGis.Polygon:
+    if qgisLayer.geometryType() == QgsWkbTypes.PolygonGeometry:
         return "fill"
     else:
         # Limitation:
         # We take the first symbol if there are categories, and assume all categories use similar renderer
         if isinstance(symbol, OrderedDict):
             symbol = list(symbol.values())[0]
-        if isinstance(symbol.symbolLayer(0), QgsSvgMarkerSymbolLayerV2):
+        if isinstance(symbol.symbolLayer(0), QgsSvgMarkerSymbolLayer):
             return "symbol"
         else:
             return "circle"
@@ -282,18 +282,18 @@ def processLayer(qgisLayer):
             layer["minzoom"]  = _toZoomLevel(float(qgisLayer.customProperty("labeling/scaleMin")))
             layer["maxzoom"]  = _toZoomLevel(float(qgisLayer.customProperty("labeling/scaleMax")))
 
-        renderer = qgisLayer.rendererV2()
-        if isinstance(renderer, QgsSingleSymbolRendererV2):
+        renderer = qgisLayer.renderer()
+        if isinstance(renderer, QgsSingleSymbolRenderer):
             symbols = renderer.symbol().clone()
             functionType = None
             prop = None
-        elif isinstance(renderer, QgsCategorizedSymbolRendererV2):
+        elif isinstance(renderer, QgsCategorizedSymbolRenderer):
             symbols = OrderedDict()
             for cat in renderer.categories():
                 symbols[cat.value()] = cat.symbol().clone()
             functionType = "categorical"
             prop = renderer.classAttribute()
-        elif isinstance(renderer, QgsGraduatedSymbolRendererV2):
+        elif isinstance(renderer, QgsGraduatedSymbolRenderer):
             symbols = OrderedDict()
             for ran in renderer.ranges():
                 symbols[ran.lowerValue()] = ran.symbol().clone()
@@ -382,8 +382,8 @@ def _qcolorFromRGBString(color):
 
 
 def _markerSymbol(outlineColor, outlineWidth, color, size, opacity):
-    symbol = QgsMarkerSymbolV2()
-    symbolLayer = QgsSimpleMarkerSymbolLayerV2(size = size, color = _qcolorFromRGBString(color))
+    symbol = QgsMarkerSymbol()
+    symbolLayer = QgsSimpleMarkerSymbolLayer(size = size, color = _qcolorFromRGBString(color))
     symbolLayer.setOutlineColor(_qcolorFromRGBString(outlineColor))
     symbolLayer.setOutlineWidth(outlineWidth)
     symbol.appendSymbolLayer(symbolLayer)
@@ -392,8 +392,8 @@ def _markerSymbol(outlineColor, outlineWidth, color, size, opacity):
     return symbol
 
 def _fillSymbol(color, outlineColor, translate, opacity):
-    symbol = QgsFillSymbolV2()
-    symbolLayer = QgsSimpleFillSymbolLayerV2()
+    symbol = QgsFillSymbol()
+    symbolLayer = QgsSimpleFillSymbolLayer()
     symbolLayer.setBorderColor(_qcolorFromRGBString(outlineColor))
     x,y = translate.split(",")
     symbolLayer.setOffset(QPointF(float(x), float(y)))
@@ -404,8 +404,8 @@ def _fillSymbol(color, outlineColor, translate, opacity):
     return symbol
 
 def _lineSymbol(color, width, dash, offset, opacity):
-    symbol = QgsLineSymbolV2()
-    symbolLayer = QgsSimpleLineSymbolLayerV2(_qcolorFromRGBString(color), width)
+    symbol = QgsLineSymbol()
+    symbolLayer = QgsSimpleLineSymbolLayer(_qcolorFromRGBString(color), width)
     symbolLayer.setCustomDashVector(dash)
     symbolLayer.setOffset(offset)
     symbol.appendSymbolLayer(symbolLayer)
@@ -441,8 +441,8 @@ def _svgMarkerSymbol(name, sprites):
     svgPath = os.path.join(os.path.dirname(sprites), name + ".svg")
     with open(svgPath, "w") as f:
         f.write
-    symbol = QgsMarkerSymbolV2()
-    symbolLayer = QgsSvgMarkerSymbolLayerV2(svgPath)
+    symbol = QgsMarkerSymbol()
+    symbolLayer = QgsSvgMarkerSymbolLayer(svgPath)
     symbol.setSize(max([width, height]))
     symbol.appendSymbolLayer(symbolLayer)
     symbol.deleteSymbolLayer(0)
@@ -466,9 +466,9 @@ def setLayerSymbologyFromMapboxStyle(layer, style, sprites):
                     color = stop[1]
                     symbol = _lineSymbol(color, width, dash, offset, opacity)
                     value = stop[0]
-                    categories.append(QgsRendererCategoryV2(value, symbol, value))
-                renderer = QgsCategorizedSymbolRendererV2(style["paint"]["line-color"]["property"], categories)
-                layer.setRendererV2(renderer)
+                    categories.append(QgsRendererCategory(value, symbol, value))
+                renderer = QgsCategorizedSymbolRenderer(style["paint"]["line-color"]["property"], categories)
+                layer.setRenderer(renderer)
             else:
                 ranges = []
                 for i, stop in enumerate(style["paint"]["line-color"]["stops"]):
@@ -483,9 +483,9 @@ def setLayerSymbologyFromMapboxStyle(layer, style, sprites):
                         max = style["paint"]["line-color"]["stops"][i+1][0]
                     except:
                         max = 100000000000
-                    ranges.append(QgsRendererRangeV2(min, max, symbol, str(min) + "-" + str(max)))
-                renderer = QgsGraduatedSymbolRendererV2(style["paint"]["line-color"]["property"], ranges)
-                layer.setRendererV2(renderer)
+                    ranges.append(QgsRendererRange(min, max, symbol, str(min) + "-" + str(max)))
+                renderer = QgsGraduatedSymbolRenderer(style["paint"]["line-color"]["property"], ranges)
+                layer.setRenderer(renderer)
         else:
             dash = style["paint"]["line-dasharray"]
             width = style["paint"]["line-width"]
@@ -493,7 +493,7 @@ def setLayerSymbologyFromMapboxStyle(layer, style, sprites):
             opacity = style["paint"]["line-opacity"]
             color = style["paint"]["line-color"]
             symbol = _lineSymbol(color, width, dash, offset, opacity)
-            layer.setRendererV2(QgsSingleSymbolRendererV2(symbol))
+            layer.setRenderer(QgsSingleSymbolRenderer(symbol))
     elif style["type"] == "circle":
         if isinstance(style["paint"]["circle-radius"], dict):
             if style["paint"]["circle-radius"]["type"] == "categorical":
@@ -506,9 +506,9 @@ def setLayerSymbologyFromMapboxStyle(layer, style, sprites):
                     radius = stop[1]
                     symbol = _markerSymbol(outlineColor, outlineWidth, color, radius, opacity)
                     value = stop[0]
-                    categories.append(QgsRendererCategoryV2(value, symbol, value))
-                renderer = QgsCategorizedSymbolRendererV2(style["paint"]["circle-radius"]["property"], categories)
-                layer.setRendererV2(renderer)
+                    categories.append(QgsRendererCategory(value, symbol, value))
+                renderer = QgsCategorizedSymbolRenderer(style["paint"]["circle-radius"]["property"], categories)
+                layer.setRenderer(renderer)
             else:
                 ranges = []
                 for i, stop in enumerate(style["paint"]["circle-radius"]["stops"]):
@@ -523,9 +523,9 @@ def setLayerSymbologyFromMapboxStyle(layer, style, sprites):
                         max = style["paint"]["circle-radius"]["stops"][i+1][0]
                     except:
                         max = 100000000000
-                    ranges.append(QgsRendererRangeV2(min, max, symbol, str(min) + "-" + str(max)))
-                renderer = QgsGraduatedSymbolRendererV2(style["paint"]["circle-radius"]["property"], ranges)
-                layer.setRendererV2(renderer)
+                    ranges.append(QgsRendererRange(min, max, symbol, str(min) + "-" + str(max)))
+                renderer = QgsGraduatedSymbolRenderer(style["paint"]["circle-radius"]["property"], ranges)
+                layer.setRenderer(renderer)
         else:
             outlineColor = style["paint"]["circle-stroke-color"]
             outlineWidth = style["paint"]["circle-stroke-width"]
@@ -533,7 +533,7 @@ def setLayerSymbologyFromMapboxStyle(layer, style, sprites):
             radius = style["paint"]["circle-radius"]
             opacity = style["paint"]["circle-opacity"]
             symbol = _markerSymbol(outlineColor, outlineWidth, color, radius, opacity)
-            layer.setRendererV2(QgsSingleSymbolRendererV2(symbol))
+            layer.setRenderer(QgsSingleSymbolRenderer(symbol))
     elif style["type"] == "fill":
         if isinstance(style["paint"]["fill-color"], dict):
             if style["paint"]["fill-color"]["type"] == "categorical":
@@ -545,9 +545,9 @@ def setLayerSymbologyFromMapboxStyle(layer, style, sprites):
                     color = stop[1]
                     symbol = _fillSymbol(color, outlineColor, translate, opacity)
                     value = stop[0]
-                    categories.append(QgsRendererCategoryV2(value, symbol, value))
-                renderer = QgsCategorizedSymbolRendererV2(style["paint"]["fill-color"]["property"], categories)
-                layer.setRendererV2(renderer)
+                    categories.append(QgsRendererCategory(value, symbol, value))
+                renderer = QgsCategorizedSymbolRenderer(style["paint"]["fill-color"]["property"], categories)
+                layer.setRenderer(renderer)
             else:
                 ranges = []
                 for i, stop in enumerate(style["paint"]["fill-color"]["stops"]):
@@ -561,16 +561,16 @@ def setLayerSymbologyFromMapboxStyle(layer, style, sprites):
                         max = style["paint"]["fill-color"]["stops"][i+1][0]
                     except:
                         max = 100000000000
-                    ranges.append(QgsRendererRangeV2(min, max, symbol, str(min) + "-" + str(max)))
-                renderer = QgsGraduatedSymbolRendererV2(style["paint"]["fill-color"]["property"], ranges)
-                layer.setRendererV2(renderer)
+                    ranges.append(QgsRendererRange(min, max, symbol, str(min) + "-" + str(max)))
+                renderer = QgsGraduatedSymbolRenderer(style["paint"]["fill-color"]["property"], ranges)
+                layer.setRenderer(renderer)
         else:
             outlineColor = style["paint"]["fill-outline-color"]
             translate = style["paint"]["fill-translate"]
             opacity = style["paint"]["fill-opacity"]
             color = style["paint"]["fill-color"]
             symbol = _fillSymbol(color, outlineColor, translate, opacity)
-            layer.setRendererV2(QgsSingleSymbolRendererV2(symbol))
+            layer.setRenderer(QgsSingleSymbolRenderer(symbol))
     elif style["type"] == "symbol":
         if isinstance(style["paint"]["icon-image"], dict):
             if style["paint"]["icon-image"]["type"] == "categorical":
@@ -578,9 +578,9 @@ def setLayerSymbologyFromMapboxStyle(layer, style, sprites):
                 for i, stop in enumerate(style["paint"]["icon-image"]["stops"]):
                     symbol = _svgMarkerSymbol(stop[1], sprites)
                     value = stop[0]
-                    categories.append(QgsRendererCategoryV2(value, symbol, value))
-                renderer = QgsCategorizedSymbolRendererV2(style["paint"]["icon-image"]["property"], categories)
-                layer.setRendererV2(renderer)
+                    categories.append(QgsRendererCategory(value, symbol, value))
+                renderer = QgsCategorizedSymbolRenderer(style["paint"]["icon-image"]["property"], categories)
+                layer.setRenderer(renderer)
             else:
                 ranges = []
                 for i, stop in enumerate(style["paint"]["icon-image"]["stops"]):
@@ -590,9 +590,9 @@ def setLayerSymbologyFromMapboxStyle(layer, style, sprites):
                         max = style["paint"]["icon-image"]["stops"][i+1][0]
                     except:
                         max = 100000000000
-                    ranges.append(QgsRendererRangeV2(min, max, symbol, str(min) + "-" + str(max)))
-                renderer = QgsGraduatedSymbolRendererV2(style["paint"]["icon-image"]["property"], ranges)
-                layer.setRendererV2(renderer)
+                    ranges.append(QgsRendererRange(min, max, symbol, str(min) + "-" + str(max)))
+                renderer = QgsGraduatedSymbolRenderer(style["paint"]["icon-image"]["property"], ranges)
+                layer.setRenderer(renderer)
 
     layer.triggerRepaint()
 

@@ -141,11 +141,14 @@ class google_authorization(object):
         print ("proxySettings",proxyEnabled,proxyType)
         if proxyEnabled == "true" and proxyType == 'HttpProxy': # test if there are proxy settings
             proxyConf = httplib2.ProxyInfo(httplib2.socks.PROXY_TYPE_HTTP_NO_TUNNEL, proxyHost, int(proxyPort), proxy_user = proxyUser, proxy_pass = proxyPassword)
+            proxy_url = "http://{}:{}@{}:{}".format(proxyUser,proxyPassword,proxyHost,proxyPort)
+            for var in ["HTTP_PROXY","HTTPS_PROXY","http_proxy","https_proxy",]:
+                os.environ[var] = proxy_url
+            #print(os.environ)
         else:
             proxyConf =  None
-        print ("proxyConf",proxyConf)
-        #print(os.environ)
-        self.httpConnection = httplib2shim.Http( ca_certs=os.path.join(self.credential_dir,'cacerts.txt'), timeout=5) #proxy_info = proxyConf,
+        #print ("proxyConf",proxyConf)
+        self.httpConnection = httplib2shim.Http(ca_certs=os.path.join(self.credential_dir,'cacerts.txt'), timeout=5) #proxy_info = proxyConf,
         auth = self.get_credentials()
         if auth:
             return auth.authorize(self.httpConnection)
@@ -513,6 +516,7 @@ class service_spreadsheet(object):
                 "range": update_range,
                 "values": new_sheet_data,
             }
+            print(self.spreadsheetId,update_range,new_sheet_data[:10])
             result = self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheetId,
                                                                  range=update_range,
                                                                  body=update_body,
@@ -923,7 +927,7 @@ class service_spreadsheet(object):
         self.pack_in_cell(mapboxstyle,"settings!A5")
 
     def pack_in_cell(self,content,cell):
-        zip_encoded =  base64.b64encode(zlib.compress(content.encode("utf-8")))
+        zip_encoded =  base64.b64encode(zlib.compress(content.encode("utf-8"))).decode('utf-8')
         self.set_sheet_cell(cell,zip_encoded)
 
 
@@ -933,7 +937,7 @@ class service_spreadsheet(object):
         :return:
         '''
         xmlstyle_zip = self.sheet_cell("settings!A3")
-        return zlib.decompress(base64.b64decode(xmlstyle_zip))
+        return zlib.decompress(base64.b64decode(xmlstyle_zip)).decode("utf-8")
     
     def evaluate_formula(self,formula): #SHEET stay for the table layer
         '''

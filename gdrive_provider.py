@@ -765,7 +765,7 @@ body {
                 "values": [publicLinkContent]
             }
             # fix_print_with_import
-            print("update_public_link", list(service_sheet.service.spreadsheets().values()).update(spreadsheetId=current_spreadsheet_id,range=range, body=update_body, valueInputOption='USER_ENTERED').execute())
+            print("update_public_link", service_sheet.service.spreadsheets().values().update(spreadsheetId=current_spreadsheet_id,range=range, body=update_body, valueInputOption='USER_ENTERED').execute())
 
             self.refresh_available()
 
@@ -799,7 +799,7 @@ body {
         """
         method to export a selected QGIS layer to Google drive (from dialog or layer contextual menu
         """
-        layer = comboDialog.select(QgsProject.instance().mapLayers(), self.iface.legendInterface().currentLayer())
+        layer = comboDialog.select(QgsProject.instance().mapLayers(), self.iface.activeLayer())
         self.dup_to_google_drive(layer)
 
     def importByIdAction(self):
@@ -812,7 +812,7 @@ body {
             self.myDrive.configure_service()
             try:
                 response = self.myDrive.service.files().update(fileId=import_id, addParents='root').execute()
-                QtGui.qApp.processEvents()
+                QApplication.processEvents()
                 self.refresh_available()
             except Exception as e:
                 logger("exception %s; can't open fileid %s" % (str(e),import_id))
@@ -864,23 +864,26 @@ body {
         :return:
         '''
         if not layer:
-            layer = self.iface.legendInterface().currentLayer()
+            layer = self.iface.activeLayer()
         if not self.client_id or not self.myDrive:
             self.updateAccountAction()           
-        try:
+        #try:
             #Wait cursor
-            QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
-            
-            self.myDrive.configure_service()
-            QtGui.qApp.processEvents()
-            
-            self.gdrive_layer = GoogleDriveLayer(self, self.authorization, layer.name(), importing_layer=layer)
-            QtGui.qApp.processEvents()
-            
-            self.refresh_available()
-            
-            QApplication.restoreOverrideCursor()
-            QtGui.qApp.processEvents()
+        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+        
+        self.myDrive.configure_service()
+        QApplication.processEvents()
+        
+        self.gdrive_layer = GoogleDriveLayer(self, self.authorization, layer.name(), importing_layer=layer)
+        QApplication.processEvents()
+        
+        self.refresh_available()
+        
+        QApplication.restoreOverrideCursor()
+        QApplication.processEvents()
+
+        try:
+            pass
         except Exception as e:
             # fix_print_with_import
             print("EXCEPTION", str(e))
