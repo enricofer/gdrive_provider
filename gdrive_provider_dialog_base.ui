@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>755</width>
-    <height>603</height>
+    <width>766</width>
+    <height>561</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -76,7 +76,14 @@
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout_2">
      <item>
-      <widget class="QListWidget" name="listWidget"/>
+      <widget class="QListWidget" name="listWidget">
+       <property name="minimumSize">
+        <size>
+         <width>300</width>
+         <height>0</height>
+        </size>
+       </property>
+      </widget>
      </item>
      <item>
       <layout class="QVBoxLayout" name="verticalLayout">
@@ -84,45 +91,154 @@
         <number>3</number>
        </property>
        <item>
-        <widget class="QTextEdit" name="textEdit_sample"/>
-       </item>
-       <item>
-        <widget class="QFrame" name="frame">
-         <property name="frameShape">
-          <enum>QFrame::StyledPanel</enum>
+        <widget class="QTabWidget" name="tabWidget">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
          </property>
-         <property name="frameShadow">
-          <enum>QFrame::Sunken</enum>
+         <property name="currentIndex">
+          <number>0</number>
          </property>
-         <layout class="QHBoxLayout" name="horizontalLayout">
-          <property name="spacing">
-           <number>0</number>
-          </property>
-          <property name="margin">
-           <number>0</number>
-          </property>
-          <item>
-           <widget class="QWebView" name="infoTextBox">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>362</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="url">
-             <url>
-              <string>about:blank</string>
-             </url>
-            </property>
-           </widget>
-          </item>
-         </layout>
+         <property name="documentMode">
+          <bool>true</bool>
+         </property>
+         <property name="tabsClosable">
+          <bool>false</bool>
+         </property>
+         <widget class="QWidget" name="metadataTab">
+          <attribute name="title">
+           <string>Metadata</string>
+          </attribute>
+          <layout class="QVBoxLayout" name="verticalLayout_6">
+           <property name="spacing">
+            <number>0</number>
+           </property>
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QTableWidget" name="metadataTable">
+             <property name="showDropIndicator" stdset="0">
+              <bool>false</bool>
+             </property>
+             <property name="dragDropOverwriteMode">
+              <bool>false</bool>
+             </property>
+             <attribute name="horizontalHeaderVisible">
+              <bool>false</bool>
+             </attribute>
+             <attribute name="horizontalHeaderHighlightSections">
+              <bool>false</bool>
+             </attribute>
+             <attribute name="verticalHeaderVisible">
+              <bool>false</bool>
+             </attribute>
+             <attribute name="verticalHeaderHighlightSections">
+              <bool>false</bool>
+             </attribute>
+             <row>
+              <property name="text">
+               <string>New Row</string>
+              </property>
+             </row>
+             <row>
+              <property name="text">
+               <string>New Row</string>
+              </property>
+             </row>
+             <row>
+              <property name="text">
+               <string>New Row</string>
+              </property>
+             </row>
+             <row>
+              <property name="text">
+               <string>New Row</string>
+              </property>
+             </row>
+             <row>
+              <property name="text">
+               <string>New Row</string>
+              </property>
+             </row>
+             <row>
+              <property name="text">
+               <string>New Row</string>
+              </property>
+             </row>
+             <row>
+              <property name="text">
+               <string>New Row</string>
+              </property>
+             </row>
+             <column>
+              <property name="text">
+               <string>New Column</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>New Column</string>
+              </property>
+             </column>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="keymapTab">
+          <attribute name="title">
+           <string>Keymap</string>
+          </attribute>
+          <layout class="QVBoxLayout" name="verticalLayout_5">
+           <property name="spacing">
+            <number>0</number>
+           </property>
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QWebView" name="infobox_keymap">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>16777215</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="url">
+              <url>
+               <string>about:blank</string>
+              </url>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
         </widget>
        </item>
        <item>
@@ -140,7 +256,7 @@
           </size>
          </property>
          <property name="title">
-          <string>read/write list</string>
+          <string>read list</string>
          </property>
          <property name="flat">
           <bool>true</bool>
@@ -167,14 +283,14 @@
           <item>
            <layout class="QVBoxLayout" name="verticalLayout_2">
             <item>
-             <widget class="QPlainTextEdit" name="writeListTextBox"/>
+             <widget class="QPlainTextEdit" name="readListTextBox"/>
             </item>
             <item>
              <layout class="QHBoxLayout" name="horizontalLayout_8">
               <item>
-               <widget class="QCheckBox" name="anyoneCanWrite">
+               <widget class="QCheckBox" name="anyoneCanRead">
                 <property name="text">
-                 <string>anyone can read/write</string>
+                 <string>anyone can read (enable WebLink)</string>
                 </property>
                </widget>
               </item>
@@ -220,7 +336,7 @@
           </size>
          </property>
          <property name="title">
-          <string>read list</string>
+          <string>read/write list</string>
          </property>
          <property name="flat">
           <bool>true</bool>
@@ -251,14 +367,17 @@
           <item>
            <layout class="QVBoxLayout" name="verticalLayout_3">
             <item>
-             <widget class="QPlainTextEdit" name="readListTextBox"/>
+             <widget class="QPlainTextEdit" name="writeListTextBox"/>
             </item>
             <item>
              <layout class="QHBoxLayout" name="horizontalLayout_4">
+              <property name="spacing">
+               <number>1</number>
+              </property>
               <item>
-               <widget class="QCheckBox" name="anyoneCanRead">
+               <widget class="QCheckBox" name="anyoneCanWrite">
                 <property name="text">
-                 <string>anyone can read</string>
+                 <string>anyone can read/write</string>
                 </property>
                </widget>
               </item>
@@ -387,7 +506,7 @@
   <customwidget>
    <class>QWebView</class>
    <extends>QWidget</extends>
-   <header>QtWebKit/QWebView</header>
+   <header>QtWebKitWidgets/QWebView</header>
   </customwidget>
  </customwidgets>
  <resources/>

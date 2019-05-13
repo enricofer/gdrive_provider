@@ -268,15 +268,19 @@ class service_drive(object):
         '''
         logger( "Removed permission: " + json.dumps(self.service.permissions().delete(fileId=spreadsheet_id, permissionId=permission_id).execute()))
 
-    def publish_to_web(self,spreadsheet_id):
+    def publish_to_web(self, metadata):
         # fix_print_with_import
+        spreadsheet_id = metadata["id"]
+        print(self.add_permission(spreadsheet_id, "anyoneWithLink","reader"))
         print(self.service.revisions().update(fileId=spreadsheet_id, revisionId='head',
-                                        body={'published': True, 'publishAuto': True}).execute())
+                                        body={'published': True, 'publishAuto': True, "publishedOutsideDomain": True,}).execute())
 
-    def unpublish_to_web(self,spreadsheet_id):
+    def unpublish_to_web(self,metadata):
         # fix_print_with_import
+        spreadsheet_id = metadata["id"]
+        print(self.service.permissions().delete(fileId=spreadsheet_id, permissionId='anyoneWithLink'))
         print(self.service.revisions().update(fileId=spreadsheet_id, revisionId='head',
-                                        body={'published': False, 'publishAuto': False}).execute())
+                                        body={'published': False, 'publishAuto': False, "publishedOutsideDomain": False,}).execute())
 
     def add_permission(self, spreadsheet_id, user_id, role, type = 'user'):
         '''
@@ -293,6 +297,13 @@ class service_drive(object):
               "type": 'anyone',
               "role": role,
               "allowFileDiscovery": True,
+            }
+        elif user_id == 'anyoneWithLink':
+            create_perm_body = {
+              "kind": "drive#permission",
+              "type": 'anyone',
+              "role": role,
+              "allowFileDiscovery": False,
             }
         else:
             create_perm_body = {
@@ -657,7 +668,11 @@ class service_spreadsheet(object):
         }
         result = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheetId, body=request_body).execute()
         return result
-    
+
+    def getHeader(self):
+        result = self.service.spreadsheets().values().batchGet(spreadsheetId=self.spreadsheetId, ranges="summary!A1:B9", valueRenderOption='UNFORMATTED_VALUE').execute()
+        return result
+
     def cell(self,field,row, sheet = None):
         '''
         Return a single cell value
@@ -1011,7 +1026,7 @@ class service_spreadsheet(object):
         if childSheet:
             range = childSheet+"!A:ZZZ"
         else:
-            range = "A:ZZZ"
+            range = self.name+"!A:ZZZ"
         return self.service.spreadsheets().values().append(spreadsheetId=self.spreadsheetId,
                                                            range=range,
                                                            body=append_body,

@@ -36,7 +36,7 @@ from qgis.utils import plugins
 
 from qgis.PyQt import  QtGui
 from qgis.PyQt.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QTimer, QUrl, QSize, Qt
-from qgis.PyQt.QtWidgets import QAction, QDialog, QProgressBar, QDialogButtonBox, QListWidgetItem, QApplication
+from qgis.PyQt.QtWidgets import QAction, QDialog, QProgressBar, QDialogButtonBox, QListWidgetItem, QApplication, QTableWidgetItem
 from qgis.PyQt.QtGui import QIcon, QPixmap, QCursor
 # Initialize Qt resources from file resources.py
 from . import resources_rc
@@ -224,8 +224,10 @@ class Google_Drive_Provider(object):
         self.dlg.anyoneCanRead.stateChanged.connect(self.anyoneCanReadAction)
         #self.dlg.updateWriteListButton.clicked.connect(self.updateReadWriteListAction)
         self.dlg.vacuumTablesButton.clicked.connect(self.vacuumTablesAction)
-        self.dlg.textEdit_sample.hide()
-        self.dlg.infoTextBox.page().setNetworkAccessManager(QgsNetworkAccessManager.instance())
+        #self.dlg.textEdit_sample.hide()
+        #self.dlg.infoTextBox.hide()
+        self.dlg.metadataTable.setRowCount(0)
+        self.dlg.infobox_keymap.page().setNetworkAccessManager(QgsNetworkAccessManager.instance())
         self.dlg.updateReadListButton.clicked.connect(self.updateReadWriteListAction)
         self.dlg.updateReadListButton.setIcon(QIcon(os.path.join(self.plugin_dir,'shared.png')))
         self.dlg.accountButton.clicked.connect(self.updateAccountAction)
@@ -489,57 +491,44 @@ class Google_Drive_Provider(object):
         self.dlg.anyoneCanRead.setChecked(False)
         self.dlg.anyoneCanWrite.setChecked(False)
         self.current_spreadsheet_id =  self.available_sheets[item.text()]['id']
-        self.current_metadata = self.available_sheets[item.text()]#self.myDrive.getFileMetadata(current_spreadsheet_id)
-        #self.dlg.infoTextBox.clear()
+        self.current_metadata = self.available_sheets[item.text()]
+        ###TOO SLOW BROWSING
+        #sheet_service = service_spreadsheet(self.authorization, spreadsheetId=self.current_spreadsheet_id)
+        #header = sheet_service.getHeader()
+        #print(header)
 
         page = '''
 <html>
 <head>
 <style>
-.fieldrow {
-    font-family: "%s";
-    font-size: %spt;
-    /*text-shadow: 2px 2px #FFF, -2px 2px #FFF, 2px -2px #FFF, -2px -2px #FFF;*/
-}
-.fieldname{
-    font-weight: bold;
-}
-.mask{
-    background-color: #FFF;
-}
-body {
-    background-image: url("%s");
-    -webkit-background-size: cover;
-}
+.keymap {{
+    background-image: url("{}");
+    -webkit-background-size: contain;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    width: 100%;
+    height: 100%;
+}}
 </style>
 </head>
 <body>
-<table width="330px" >
-%s
-</table>
+<div class="keymap"></div>
 </body>
 </html>
         '''
-        table_content = '''
-        '''
-        for row in ['owner', 'name', 'id', 'modifiedTime', 'createdTime', 'version', 'capability']:
-            table_content += '''
-    <tr>
-        <td><p class="fieldname fieldrow"><span class="mask">%s</snap></p></td>
-    </tr>
-    <tr>
-        <td><p class="fieldrow"><span class="mask">{%s}</snap></p></td>
-    </tr>
-            ''' % (row,row)
 
         thumbnail_rif = self.myDrive.list_files(mimeTypeFilter='image/png', filename=item.text()+'.png' )
         if thumbnail_rif:
             web_link = 'https://drive.google.com/uc?export=view&id='+ thumbnail_rif[item.text()+'.png']['id']
             # fix_print_with_import
             print("web_link",web_link)
-            #self.dlg.infoTextBox.setStyleSheet('background-image: url(%s)' % web_link)
         else:
-            web_link = ''
+            web_link = '_'
+
+        print (page, web_link)
+
+        self.dlg.infobox_keymap.page().currentFrame().setHtml(page.format(web_link))
 
         owners_list = [owner["emailAddress"] for owner in self.current_metadata['owners']]
         owners = " ".join(owners_list)
@@ -549,12 +538,18 @@ body {
         else:
             writeCapability = "read-only file"
 
-        table_content = table_content.format(owner=owners, capability=writeCapability, **self.current_metadata)
-        page = page % (self.dlg.textEdit_sample.font().rawName(),self.dlg.textEdit_sample.font().pointSize(),web_link,table_content)
-        self.dlg.infoTextBox.page().currentFrame().setHtml(page)
+        #print (self.current_metadata)
+        self.dlg.metadataTable.clear()
+        self.dlg.metadataTable.setRowCount(0)
+        for row in ['owner', 'name', 'id', 'modifiedTime', 'createdTime', 'version', 'capability'][::-1]:
+            self.dlg.metadataTable.insertRow(0)
+            self.dlg.metadataTable.setItem(0,0,QTableWidgetItem(row))
+            self.dlg.metadataTable.setItem(0,1,QTableWidgetItem(dict(owner=owners, capability=writeCapability, **self.current_metadata)[row]))
+        self.dlg.metadataTable.resizeColumnsToContents()
+        #self.dlg.metadataTable.resizeRowsToContents()
+        self.dlg.metadataTable.horizontalHeader().setStretchLastSection(True)
 
         # fix_print_with_import
-        print("stylesheet", self.dlg.textEdit_sample.font().pixelSize(), self.dlg.textEdit_sample.font().rawName())
 
         permission_groups = [
             self.dlg.readListGroupBox,
@@ -590,96 +585,31 @@ body {
         self.dlg.readListTextBox.clear()
         self.dlg.readListTextBox.appendPlainText(' '.join(self.original_read_list))
 
-        if self.client_id in owners_list:
-            self.dlg.vacuumTablesButton.show()
+        glayer_is_loaded = None
+        for glayer in self.GooGISLayers():
+            print(glayer,self.isGooGISLayer(glayer),self.current_spreadsheet_id)
+            if self.isGooGISLayer(glayer) == self.current_spreadsheet_id:
+                glayer_is_loaded = True
+                break
+
+        if self.client_id in owners_list and not glayer_is_loaded:
+            self.dlg.vacuumTablesButton.setDisabled(False)
         else:
-            self.dlg.vacuumTablesButton.hide()
+            self.dlg.vacuumTablesButton.setDisabled(True)
 
     def vacuumTablesAction(self):
         self.sheet_service = service_spreadsheet(self.authorization, spreadsheetId=self.current_spreadsheet_id)
         sheets = self.sheet_service.get_sheets()
-        open_activity = list(set(sheets.keys()) - set([self.sheet_service.name, 'settings', 'summary', 'changes_log']))
+        open_activity = list(set(sheets.keys()) - set([self.sheet_service.name, self.client_id,  'settings', 'summary', 'changes_log']))
         # fix_print_with_import
-        print(open_activity)
+        #print(self.client_id,sheets,open_activity)
         if not open_activity:
+            self.remove_GooGIS_layers(layerId_to_delete=self.current_spreadsheet_id)
             self.sheet_service.remove_deleted_rows()
             self.sheet_service.remove_deleted_columns()
         else:
             # fix_print_with_import
             print("CAN'T VACUUM TABLES")
-
-    def ex_viewMetadata(self,item,prev):
-        '''
-        original method, temporary leaved here
-        '''
-        self.dlg.anyoneCanRead.setChecked(False)
-        self.dlg.anyoneCanWrite.setChecked(False)
-        current_spreadsheet_id =  self.available_sheets[item.text()]['id']
-        self.current_metadata = self.available_sheets[item.text()]#self.myDrive.getFileMetadata(current_spreadsheet_id)
-        #self.dlg.infoTextBox.clear()
-        page = ''
-        thumbnail_rif = self.myDrive.list_files(mimeTypeFilter='image/png', filename=item.text()+'.png' )
-        if thumbnail_rif:
-            web_link = 'https://drive.google.com/uc?export=view&id='+ thumbnail_rif[item.text()+'.png']['id']
-            # fix_print_with_import
-            print("web_link",web_link)
-            self.dlg.infoTextBox.setStyleSheet('background-image: url(%s)' % web_link)
-        else:
-            web_link = ''
-        self.dlg.infoTextBox.append('<table><tr style="width:100%;" >')
-
-        owners = [owner["emailAddress"] for owner in self.current_metadata['owners']]
-        permission_groups = [
-            self.dlg.readListGroupBox,
-            self.dlg.writeListGroupBox,
-        ]
-        for group in permission_groups:
-            if self.client_id in owners:
-                group.setEnabled(True)
-            else:
-                group.setEnabled(False)
-
-        self.dlg.infoTextBox.append('<td style="background-color: #eeeeee;"><strong>owners</strong></td>')
-        self.dlg.infoTextBox.append('<td>{}</td>'.format(" ".join(owners)))
-
-        for row in ['name', 'id', 'modifiedTime', 'createdTime', 'version']:
-            self.dlg.infoTextBox.append('<td style="background-color: #eeeeee;"><strong>{}</strong></td>'.format(row))
-            self.dlg.infoTextBox.append('<td>{}</td>'.format( self.current_metadata[row]))
-        if self.current_metadata['capabilities']['canEdit']:
-            writeCapability = "editable file"
-        else:
-            writeCapability = "read-only file"
-        self.dlg.infoTextBox.append('<td style="background-color: #eeeeee;"><strong>capabilities</strong></td>')
-        self.dlg.infoTextBox.append('<td>{}</td>'.format(writeCapability))
-        self.dlg.infoTextBox.append('<td><img src="{}" /></td>'.format(web_link))
-
-        #self.dlg.infoTextBox.append('</tr></table>')
-        #self.dlg.infoTextBox.append(json.dumps(self.current_metadata, indent=3))
-
-        self.original_write_list = []
-        self.original_read_list = []
-        if not 'permissions' in self.current_metadata:
-            return
-        for permission in self.current_metadata['permissions']:
-            if permission['role'] == 'writer':
-                if permission['type'] == 'anyone':
-                    #self.original_write_list.append('anyone')
-                    self.dlg.anyoneCanWrite.setChecked(True)
-                else:
-                    self.original_write_list.append(permission['emailAddress'])
-            if permission['role'] == 'reader':
-                if permission['type'] == 'anyone':
-                    #self.original_read_list.append('anyone')
-                    self.dlg.anyoneCanRead.setChecked(True)
-                else:
-                    self.original_read_list.append(permission['emailAddress'])
-
-        self.dlg.writeListTextBox.clear()
-        self.dlg.writeListTextBox.appendPlainText(' '.join(self.original_write_list))
-
-        self.dlg.readListTextBox.clear()
-        self.dlg.readListTextBox.appendPlainText(' '.join(self.original_read_list))
-
 
     def anyoneCanWriteAction(self,state):
         '''
@@ -748,16 +678,16 @@ body {
                     if new_read_user == 'anyone':
                         widgets['update_publish'] = True
         #update public link in summary sheet
-        if rw_commander["reader"]['update_publish'] or rw_commander["writer"]['update_publish']:
-            publish_state = rw_commander["reader"]["check_anyone_widget"].isChecked() or rw_commander["writer"]["check_anyone_widget"].isChecked()
+        if rw_commander["reader"]['update_publish']: # or rw_commander["writer"]['update_publish']:
+            publish_state = rw_commander["reader"]["check_anyone_widget"].isChecked() # or rw_commander["writer"]["check_anyone_widget"].isChecked()
             # fix_print_with_import
             print("publish_state",publish_state)
             if publish_state:
                 publicLinkContent = ['public link', "https://enricofer.github.io/GooGIS2CSV/converter.html?spreadsheet_id="+current_spreadsheet_id]
-                self.myDrive.publish_to_web(current_spreadsheet_id)
+                self.myDrive.publish_to_web(self.current_metadata)
             else:
                 publicLinkContent = [' ', ' ']
-                self.myDrive.unpublish_to_web(current_spreadsheet_id)
+                self.myDrive.unpublish_to_web(self.current_metadata)
             service_sheet = service_spreadsheet(self.authorization, spreadsheetId=current_spreadsheet_id)
             range = 'summary!A9:B9'
             update_body = {
@@ -818,16 +748,18 @@ body {
                 logger("exception %s; can't open fileid %s" % (str(e),import_id))
                 pass
 
-    def remove_GooGIS_layers(self):
+    def remove_GooGIS_layers(self, layerId_to_delete=None):
         '''
         Method to remove loaded GooGIS layer from legend and map canvas. Used uninstalling plugin
         '''
         self.myDrive.renew_connection()
         for layer_id,layer in QgsProject.instance().mapLayers().items():
             # fix_print_with_import
-            print(layer_id, hasattr(layer, 'gDriveInterface'))
-            if hasattr(layer, 'gDriveInterface'):
-                QgsProject.instance().removeMapLayer(layer.id())
+            googleDriveId = layer.customProperty("googleDriveId", defaultValue=None)
+            #print(layer_id, hasattr(layer, 'gDriveInterface'))
+            if googleDriveId :
+                if not layerId_to_delete or googleDriveId == layerId_to_delete:
+                    QgsProject.instance().removeMapLayer(layer.id())
 
     def run(self):
         """
@@ -896,4 +828,4 @@ body {
         :return:
         '''
         # fix_print_with_import
-        print(webMapDialog.get_web_link(self.available_sheets))
+        print(webMapDialog.get_web_link(self))

@@ -168,7 +168,8 @@ class GoogleDriveLayer(QObject):
             #logger(self.uri)
             # Create the layer
             self.lyr = QgsVectorLayer(self.uri, layer_name, 'memory')
-            self.lyr.setCustomProperty("googleDriveId", self.spreadsheet_id)
+
+        #print("googleDriveId",self.lyr.setCustomProperty("googleDriveId", self.spreadsheet_id))
         fields_types = self.service_sheet.get_line("ROWS", 1, sheet="settings")
         attributes = []
         for i in range(2,len(self.header)):
@@ -180,6 +181,9 @@ class GoogleDriveLayer(QObject):
         self.lyr.updateFields()
 
         self.xml_to_layer_style(self.lyr,self.service_sheet.style())
+        #disable memory layers save checking when closing project
+        self.lyr.setCustomProperty("googleDriveId", self.spreadsheet_id)
+        self.lyr.setCustomProperty("skipMemoryLayersCheck", 1)
         self.lyr.rendererChanged.connect(self.style_changed)
 
         self.add_records()
@@ -625,7 +629,6 @@ class GoogleDriveLayer(QObject):
             for i,item in enumerate(feature.attributes()):
                 fieldName = self.lyr.fields().at(i).name()
                 # fix_print_with_import
-                print("FFFF", fieldName)
                 try:
                     new_row_dict[fieldName] = item.toString(format = Qt.ISODate)
                 except:

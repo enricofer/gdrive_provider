@@ -253,7 +253,7 @@ class internalBrowser(QtWidgets.QDialog, FORM_CLASS5):
 
 
 class webMapDialog(QtWidgets.QDialog, FORM_CLASS6):
-    def __init__(self,availableMaps, parent=None):
+    def __init__(self,parent_obj, parent=None):
         """Constructor."""
         super(webMapDialog, self).__init__(parent)
         # Set up the user interface from Designer.
@@ -262,10 +262,11 @@ class webMapDialog(QtWidgets.QDialog, FORM_CLASS6):
         # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
-        self.availableMaps = availableMaps
+        self.parent_obj = parent_obj
+        self.availableMaps = parent_obj.available_sheets
         self.buttonBox.accepted.connect(self.acceptedAction)
         self.buttonBox.rejected.connect(self.rejectedAction)
-        for map_name, map_metadata in availableMaps.items():
+        for map_name, map_metadata in self.availableMaps.items():
             permissions = self.get_permissions(map_metadata)
             if "anyone" in permissions:
                 publicMapItem = QListWidgetItem(QIcon(os.path.join(os.path.dirname(__file__),'globe.png')),map_name,self.publicWebMapsList, QListWidgetItem.UserType)
@@ -284,25 +285,30 @@ class webMapDialog(QtWidgets.QDialog, FORM_CLASS6):
         return permissions
 
     def acceptedAction(self):
-        selectedIds = []
-        for map_item in self.publicWebMapsList.selectedItems():
-            selectedIds.append(self.availableMaps[map_item.text()]['id'])
-        url = "https://enricofer.github.io/GooGIS2CSV/converter.html?spreadsheet_id="
-        for map_id in selectedIds:
-            url += map_id+','
-        url = url[:-1]
-        webbrowser.open(url, new=2, autoraise=True)
-        self.result = url
-        self.close()
-        self.acceptedFlag = True
+        if self.publicWebMapsList.selectedItems():
+            selectedIds = []
+            for map_item in self.publicWebMapsList.selectedItems():
+                print (map_item.text(),self.availableMaps[map_item.text()]['id'])
+                selectedIds.append(self.availableMaps[map_item.text()]['id'])
+                #self.parent_obj.myDrive.publish_to_web(self.availableMaps[map_item.text()])
+            url = "https://enricofer.github.io/GooGIS2CSV/converter.html?spreadsheet_id="
+            for map_id in selectedIds:
+                url += map_id+','
+            url = url[:-1]
+            webbrowser.open(url, new=2, autoraise=True)
+            self.result = url
+            self.close()
+            self.acceptedFlag = True
+        else:
+            self.acceptedFlag = False
 
     def rejectedAction(self):
         self.close()
         self.acceptedFlag = None
 
     @staticmethod
-    def get_web_link(availableMaps):
-        dialog = webMapDialog(availableMaps)
+    def get_web_link(parent_obj):
+        dialog = webMapDialog(parent_obj)
         dialog.setWindowFlags(Qt.WindowSystemMenuHint | Qt.WindowTitleHint)
 
         result = dialog.exec_()
