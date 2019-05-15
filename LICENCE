@@ -23,3 +23,5 @@ oauth2client - Apache License 2.0
 uritemplates - Apache License 2.0
 rsa - Apache License, version 2.0
 httplib2 - MIT licence
+httplib2shim - MIT License
+mapboxgl - GPL Version 3
