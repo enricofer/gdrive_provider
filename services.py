@@ -174,7 +174,7 @@ class google_authorization(object):
         else:
             return None
 
-class service_github(object):
+class ex_service_github(object):
     repo = 'googis_public_layers'
     username = 'googis'
     storage = 'public_metadata'
@@ -250,7 +250,55 @@ class service_github(object):
         DB_content.pop(key, None)
         self.setDB(self.DB,DB_content,sha=DB_sha)
 
+class service_github(object):
+    repo = 'googis_public_layers'
+    username = 'googis'
+    storage = 'public_metadata'
+    token = "%s:%s" % (username, '80fcc7171fc7ffc41a926e9c41c6579b3501475b')
+    api_url = 'https://api.github.com'
 
+    def __init__(self,credentials):
+        '''
+        The class is a convenience wrapper to google drive python module
+        :param credentials:
+        '''
+        self.credentials = credentials
+        self.headers = {'Authorization':'Basic {}'.format(base64.b64encode(self.token.encode("utf-8")).decode('utf-8'))}
+
+    def getKey(self,key,sha=False):
+        url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, key)
+        print (url)
+        response = requests.get( url, headers = self.headers, proxies = self.credentials.getProxyDict())
+        print (response.json())
+        if response.status_code == 200:
+            if sha:
+                return response.json()['sha']
+            else:
+                return base64.b64decode(response.json()['content']).decode('utf-8')
+
+    def setKey(self,key,value):
+        #sha = self.getKey(key,sha=True)
+        #if not sha:
+        content = base64.b64encode(json.dumps(value).encode("utf-8")).decode('utf-8')
+        sha = hashlib.sha1(content.encode("utf-8")).hexdigest()
+        url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, key)
+        payload = json.dumps({
+            "message": "Creating key: {}".format(key),
+            "content": content,
+            "sha": sha
+        })
+        response = requests.put( url, headers = self.headers, proxies = self.credentials.getProxyDict(), data=payload)
+        print (response.status_code,response.json())
+    
+    def delKey(self,key,sha=None):
+        sha = self.getKey(key,sha=True)
+        payload = json.dumps({
+            "message": "Deleting key: {}".format(key),
+            "sha": sha
+        })
+        url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, key)
+        response = requests.delete( url, headers = self.headers, proxies = self.credentials.getProxyDict(), data=payload)
+        print (response.status_code,response.json())
 
 class service_drive(object):
 

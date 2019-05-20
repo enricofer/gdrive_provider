@@ -445,8 +445,10 @@ class Google_Drive_Provider(object):
         self.dlg.listWidget.clear()
         self.dlg.writeListTextBox.clear()
         self.dlg.readListTextBox.clear()
-        sharedIcon = QIcon(os.path.join(self.plugin_dir,'shared.png'))
-        anyoneIcon = QIcon(os.path.join(self.plugin_dir,'globe.png'))
+        sharedIconOwner = QIcon(os.path.join(self.plugin_dir,'shared.png'))
+        anyoneIconOwner = QIcon(os.path.join(self.plugin_dir,'globe.png'))
+        sharedIcon = QIcon(os.path.join(self.plugin_dir,'shared_gray.png'))
+        anyoneIcon = QIcon(os.path.join(self.plugin_dir,'globe_gray.png'))
         nullIcon = QIcon(os.path.join(self.plugin_dir,'null.png'))
         for sheet_name, sheet_metadata in self.available_sheets.items():
             newItem = QListWidgetItem(QIcon(),sheet_name,self.dlg.listWidget, QListWidgetItem.UserType)
@@ -456,10 +458,17 @@ class Google_Drive_Provider(object):
                 newItem.setFont(font)
             #if sheet in shared_sheets.keys():
             permissions = self.get_permissions(sheet_metadata)
+            owners_list = [owner["emailAddress"] for owner in sheet_metadata['owners']]
             if 'anyone' in permissions:
-                newItem.setIcon(anyoneIcon)
+                if self.client_id in owners_list:
+                    newItem.setIcon(anyoneIconOwner)
+                else:
+                    newItem.setIcon(anyoneIcon)
             elif permissions != {}:
-                newItem.setIcon(sharedIcon)
+                if self.client_id in owners_list:
+                    newItem.setIcon(sharedIconOwner)
+                else:
+                    newItem.setIcon(sharedIcon)
             else:
                 newItem.setIcon(nullIcon)
             #newItem.setIcon(QIcon(os.path.join(self.plugin_dir,'shared.png')))
@@ -695,7 +704,9 @@ class Google_Drive_Provider(object):
             if publish_state:
                 publicLinkContent = ['public link', "https://enricofer.github.io/GooGIS2CSV/converter.html?spreadsheet_id="+current_spreadsheet_id]
                 self.myDrive.publish_to_web(self.current_metadata)
-                self.myDrive.ghdb.setKey(self.current_spreadsheet_id,self.current_metadata['appProperties'])
+                store_metadata = self.current_metadata['appProperties']
+                store_metadata.pop("isGOOGISsheet")
+                self.myDrive.ghdb.setKey(self.current_spreadsheet_id, store_metadata)
             else:
                 publicLinkContent = [' ', ' ']
                 self.myDrive.unpublish_to_web(self.current_metadata)

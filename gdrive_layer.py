@@ -84,7 +84,7 @@ class progressBar(object):
         widget = self.iface.messageBar().createMessage("GooGIS plugin:",msg)
         progressBar = QProgressBar()
         progressBar.setRange(0,0) #(1,steps)
-        progressBar.setValue(0)
+        #progressBar.setValue(0)
         progressBar.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         widget.layout().addWidget(progressBar)
         QApplication.processEvents()
