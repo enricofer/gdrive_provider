@@ -56,7 +56,8 @@ from qgis.PyQt.QtGui import QIcon, QPixmap
 from qgis.PyQt.QtCore import QObject, pyqtSignal, QThread, QVariant, QSize, Qt
 
 from qgis.core import (QgsVectorLayer, QgsFeature, QgsGeometry, QgsExpression, QgsField, QgsMapLayer, QgsMapRendererParallelJob,
-                       QgsFeatureRequest, QgsMessageLog,QgsCoordinateReferenceSystem, Qgis, QgsReadWriteContext, QgsProject)
+                       QgsFeatureRequest, QgsMessageLog,QgsCoordinateReferenceSystem, Qgis, QgsReadWriteContext, QgsProject,
+                       QgsCoordinateTransform, QgsCoordinateReferenceSystem, QgsPointXY, QgsRectangle)
 
 from qgis.gui import QgsMessageBar, QgsMapCanvas
 
@@ -65,7 +66,7 @@ import qgis.core
 logger = lambda msg: QgsMessageLog.logMessage(msg, 'Googe Drive Provider', 1)
 
 
-from .services import google_authorization, service_drive, service_spreadsheet
+from .services import pack, unpack, google_authorization, service_drive, service_spreadsheet
 
 from mapboxgl.mapboxgl import toMapboxgl
 
@@ -184,7 +185,6 @@ class GoogleDriveLayer(QObject):
         #disable memory layers save checking when closing project
         self.lyr.setCustomProperty("googleDriveId", self.spreadsheet_id)
         self.lyr.setCustomProperty("skipMemoryLayersCheck", 1)
-        self.lyr.rendererChanged.connect(self.style_changed)
 
         self.add_records()
 
@@ -200,6 +200,8 @@ class GoogleDriveLayer(QObject):
         #create summary if importing
         if importing_layer:
             self.update_summary_sheet()
+        
+        self.lyr.setAbstract(self.service_sheet.abstract())
         self.lyr.gdrive_control = self
         bar.stop("Layer %s succesfully loaded" % layer_name)
 
@@ -219,6 +221,8 @@ class GoogleDriveLayer(QObject):
         lyr.committedAttributeValuesChanges.connect(self.attributes_changed)
         lyr.destroyed.connect(self.unsubscribe)
         lyr.beforeCommitChanges.connect(self.inspect_changes)
+        #lyr.metadataChanged.connect(self.saveMetadataState)
+        lyr.styleChanged.connect(self.style_changed)
         #add contextual menu
         #self.sync_with_google_drive_action = QAction(QIcon(os.path.join(self.parent.plugin_dir,'sync.png')), "Sync with Google drive", self.iface.legendInterface() )
         #self.iface.legendInterface().addLegendLayerAction(self.sync_with_google_drive_action, "","01", QgsMapLayer.VectorLayer,False)
@@ -241,7 +245,7 @@ class GoogleDriveLayer(QObject):
             status = flds.pop('STATUS')
 
             if status != 'D': #non caricare i deleted
-                wkt_geom = zlib.decompress(base64.b64decode(flds.pop('WKTGEOMETRY'))).decode("utf-8")
+                wkt_geom = unpack(flds.pop('WKTGEOMETRY'))
                 #print (wkt_geom)
                 #fid = int(flds.pop('FEATUREID'))
                 feature = QgsFeature()
@@ -261,14 +265,20 @@ class GoogleDriveLayer(QObject):
                 self.lyr.addFeature(feature)
         self.lyr.commitChanges()
 
+    def saveMetadataState(self):
+        print ("metadata changed")
+        self.service_sheet.update_metadata(self.spreadsheet_id,self.get_layer_metadata())
+
     def style_changed(self):
         '''
         landing method for rendererChanged signal. It stores xml qgis style definition to the setting sheet
         '''
         logger( "style changed")
+        print("style changed")
         self.service_sheet.set_style_qgis(self.layer_style_to_xml(self.lyr))
         self.service_sheet.set_style_sld(self.SLD_to_xml(self.lyr))
         self.service_sheet.set_style_mapbox(self.layer_style_to_json(self.lyr))
+        self.saveMetadataState()
 
     def renew_connection(self):
         '''
@@ -308,7 +318,7 @@ class GoogleDriveLayer(QObject):
                 sheet_feature = self.service_sheet.get_line('ROWS',decode_update[1])
                 if decode_update[0] == 'new_feature':
                     feat = QgsFeature()
-                    geom = QgsGeometry().fromWkt(zlib.decompress(base64.b64decode(sheet_feature[0])).decode("utf-8"))
+                    geom = QgsGeometry().fromWkt(unpack(sheet_feature[0]))
                     feat.setGeometry(geom)
                     feat.setAttributes(sheet_feature[2:])
                     logger(( "updating from subscription, new_feature: " + str(self.lyr.dataProvider().addFeatures([feat]))))
@@ -319,7 +329,7 @@ class GoogleDriveLayer(QObject):
                         # fix_print_with_import
                         print("updating from subscription, delete_feature: " + str(self.lyr.dataProvider().deleteFeatures([feat.id()])))
                     elif decode_update[0] == 'update_geometry':
-                        update_set = {feat.id(): QgsGeometry().fromWkt(zlib.decompress(base64.b64decode(sheet_feature[0])).decode("utf-8"))}
+                        update_set = {feat.id(): QgsGeometry().fromWkt(unpack(sheet_feature[0]))}
                         # fix_print_with_import
                         print("update_set", update_set)
                         # fix_print_with_import
@@ -623,7 +633,7 @@ class GoogleDriveLayer(QObject):
             print "WKT", base64.b64encode(zlib.compress(feature.geometry().asWkt()))
             '''
             new_row_dict = {}.fromkeys(self.service_sheet.header,'()')
-            new_row_dict['WKTGEOMETRY'] = base64.b64encode(zlib.compress(bytes(feature.geometry().asWkt(),'utf-8'))).decode('utf-8')
+            new_row_dict['WKTGEOMETRY'] = pack(feature.geometry().asWkt())
             new_row_dict['STATUS'] = '()'
             print()
             for i,item in enumerate(feature.attributes()):
@@ -680,7 +690,7 @@ class GoogleDriveLayer(QObject):
             feature_changing = next(self.lyr.getFeatures(QgsFeatureRequest(fid)))
             row_id = feature_changing[0]
             wkt = geom.asWkt(precision=10)
-            geometry_mod.append(('WKTGEOMETRY',row_id, base64.b64encode(zlib.compress(bytes(wkt,"utf-8"))).decode("utf-8")))
+            geometry_mod.append(('WKTGEOMETRY',row_id, pack(wkt) ))
             logger ("Updated FEATUREID %s geometry" % row_id)
             self.changes_log.append('%s|%s' % ('update_geometry', str(row_id)))
 
@@ -751,7 +761,7 @@ class GoogleDriveLayer(QObject):
             break
         writer.writerow(row)
         for feat in qgis_layer.getFeatures():
-            row = [base64.b64encode(zlib.compress(bytes(feat.geometry().asWkt(precision=10),"utf-8"))).decode("utf-8"),feat.id(),"()"]
+            row = [pack(feat.geometry().asWkt(precision=10)),feat.id(),"()"]
             for field in feat.fields().toList():
                 if feat[field.name()] == qgis.core.NULL:
                     content = "()"
@@ -781,7 +791,7 @@ class GoogleDriveLayer(QObject):
             break
         rows = [row]
         for feat in qgis_layer.getFeatures():
-            row = [base64.b64encode(zlib.compress(bytes(feat.geometry().asWkt(precision=10),"utf-8"))).decode("utf-8"),"()","=ROW()"] # =ROW() perfect row/featureid correspondance
+            row = [pack(feat.geometry().asWkt(precision=10)),"()","=ROW()"] # =ROW() perfect row/featureid correspondance
             if len(row[0]) > 10000:
                 # fix_print_with_import
                 print(feat.id, len(row))
@@ -887,6 +897,16 @@ class GoogleDriveLayer(QObject):
         '''
         builds a metadata dict of the current layer to be stored in summary sheet
         '''
+        def wgs84_extent(extent):
+            llp = transformToWGS84(QgsPointXY(extent.xMinimum(),extent.yMinimum()))
+            rtp = transformToWGS84(QgsPointXY(extent.xMaximum(),extent.yMaximum()))
+            return QgsRectangle(llp,rtp)
+
+        def transformToWGS84(pPoint ):
+            crsDest = QgsCoordinateReferenceSystem(4326)  # WGS 84
+            xform = QgsCoordinateTransform(self.lyr.crs(), crsDest, QgsProject.instance())
+            return xform.transform(pPoint) # forward transformation: src -> dest
+
         #fields = collections.OrderedDict()
         fields = ""
         for field in self.lyr.fields().toList():
@@ -897,11 +917,13 @@ class GoogleDriveLayer(QObject):
             ['gdrive_id', self.service_sheet.spreadsheetId,],
             ['geometry_type', self.geom_types[self.lyr.geometryType()],],
             ['features', "'%s" % str(self.lyr.featureCount()),],
-            ['extent', self.lyr.extent().asWktCoordinates(),],
-            ['fields', fields,],
+            ['extent', wgs84_extent(self.lyr.extent()).asWktCoordinates(),],
+            #['fields', fields,],
+            ['abstract', self.lyr.abstract(),],
             ['srid', self.lyr.crs().authid(),],
-            ['proj4_def', "'%s" % self.lyr.crs().toProj4(),]
+            ['proj4_def', "'%s" % self.lyr.crs().toProj4(),],
         ]
+        print ("metadata",metadata)
         return metadata
 
     def update_summary_sheet(self):
@@ -942,20 +964,10 @@ class GoogleDriveLayer(QObject):
         self.service_drive.add_permission(result['id'],'anyone','reader')
         webLink = 'https://drive.google.com/uc?export=view&id='+result['id']
         os.remove(tmp_path)
-        # fix_print_with_import
-        print('result',result,webLink)
-
         #update layer metadata
         summary_id = self.service_sheet.add_sheet('summary', no_grid=True)
-        self.service_sheet.erase_cells('summary')
-        metadata = self.get_layer_metadata()
-        range = 'summary!A1:B8'
-        update_body = {
-            "range": range,
-            "values": metadata,
-        }
-        # fix_print_with_import
-        print("update", self.service_sheet.service.spreadsheets().values().update(spreadsheetId=self.spreadsheet_id,range=range, body=update_body, valueInputOption='USER_ENTERED').execute())
+        #self.service_sheet.erase_cells('summary')
+        #self.service_sheet.update_metadata(self.spreadsheet_id,self.get_layer_metadata())
 
         #merge cells to visualize snapshot and aaply image snapshot
         request_body = {

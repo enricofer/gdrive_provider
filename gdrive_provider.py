@@ -53,7 +53,7 @@ import collections
 import re
 from email.utils import parseaddr
 
-from .services import google_authorization, service_drive, service_spreadsheet
+from .services import google_authorization, service_drive, service_spreadsheet, service_github
 
 try:
     from pydevd import *
@@ -487,6 +487,13 @@ class Google_Drive_Provider(object):
         :param item: the selcted list widget item
         :param prev: not used
         '''
+
+        def getTableItem(content,editingDisabled=True):
+            item = QTableWidgetItem(content)
+            if editingDisabled:
+                item.setFlags( Qt.ItemIsSelectable |  Qt.ItemIsEnabled )
+            return item
+
         self.myDrive.renew_connection()
         self.dlg.anyoneCanRead.setChecked(False)
         self.dlg.anyoneCanWrite.setChecked(False)
@@ -526,8 +533,6 @@ class Google_Drive_Provider(object):
         else:
             web_link = '_'
 
-        print (page, web_link)
-
         self.dlg.infobox_keymap.page().currentFrame().setHtml(page.format(web_link))
 
         owners_list = [owner["emailAddress"] for owner in self.current_metadata['owners']]
@@ -541,10 +546,15 @@ class Google_Drive_Provider(object):
         #print (self.current_metadata)
         self.dlg.metadataTable.clear()
         self.dlg.metadataTable.setRowCount(0)
+        for row in ['geometry_type', 'srid', 'features', 'extent', "abstract"][::-1]:
+            if row in self.current_metadata["appProperties"]:
+                self.dlg.metadataTable.insertRow(0)
+                self.dlg.metadataTable.setItem(0,0,getTableItem(row))
+                self.dlg.metadataTable.setItem(0,1,getTableItem(self.current_metadata["appProperties"][row]))
         for row in ['owner', 'name', 'id', 'modifiedTime', 'createdTime', 'version', 'capability'][::-1]:
             self.dlg.metadataTable.insertRow(0)
-            self.dlg.metadataTable.setItem(0,0,QTableWidgetItem(row))
-            self.dlg.metadataTable.setItem(0,1,QTableWidgetItem(dict(owner=owners, capability=writeCapability, **self.current_metadata)[row]))
+            self.dlg.metadataTable.setItem(0,0,getTableItem(row))
+            self.dlg.metadataTable.setItem(0,1,getTableItem(dict(owner=owners, capability=writeCapability, **self.current_metadata)[row]))
         self.dlg.metadataTable.resizeColumnsToContents()
         #self.dlg.metadataTable.resizeRowsToContents()
         self.dlg.metadataTable.horizontalHeader().setStretchLastSection(True)
@@ -685,9 +695,11 @@ class Google_Drive_Provider(object):
             if publish_state:
                 publicLinkContent = ['public link', "https://enricofer.github.io/GooGIS2CSV/converter.html?spreadsheet_id="+current_spreadsheet_id]
                 self.myDrive.publish_to_web(self.current_metadata)
+                self.myDrive.ghdb.setKey(self.current_spreadsheet_id,self.current_metadata['appProperties'])
             else:
                 publicLinkContent = [' ', ' ']
                 self.myDrive.unpublish_to_web(self.current_metadata)
+                self.myDrive.ghdb.delKey(self.current_spreadsheet_id)
             service_sheet = service_spreadsheet(self.authorization, spreadsheetId=current_spreadsheet_id)
             range = 'summary!A9:B9'
             update_body = {

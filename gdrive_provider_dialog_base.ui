@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>766</width>
-    <height>561</height>
+    <height>673</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -129,6 +129,9 @@
            </property>
            <item>
             <widget class="QTableWidget" name="metadataTable">
+             <property name="verticalScrollBarPolicy">
+              <enum>Qt::ScrollBarAlwaysOff</enum>
+             </property>
              <property name="showDropIndicator" stdset="0">
               <bool>false</bool>
              </property>
@@ -144,9 +147,35 @@
              <attribute name="verticalHeaderVisible">
               <bool>false</bool>
              </attribute>
+             <attribute name="verticalHeaderDefaultSectionSize">
+              <number>27</number>
+             </attribute>
              <attribute name="verticalHeaderHighlightSections">
               <bool>false</bool>
              </attribute>
+             <attribute name="verticalHeaderMinimumSectionSize">
+              <number>17</number>
+             </attribute>
+             <row>
+              <property name="text">
+               <string>New Row</string>
+              </property>
+             </row>
+             <row>
+              <property name="text">
+               <string>New Row</string>
+              </property>
+             </row>
+             <row>
+              <property name="text">
+               <string>New Row</string>
+              </property>
+             </row>
+             <row>
+              <property name="text">
+               <string>New Row</string>
+              </property>
+             </row>
              <row>
               <property name="text">
                <string>New Row</string>

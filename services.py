@@ -42,12 +42,14 @@ from qgis.core import QgsMessageLog, NULL
 #Standard modules
 import httplib2
 import httplib2shim
+import requests
 import os
 import io
 import csv
 import collections
 import json
 import base64
+import hashlib
 import zlib
 from string import ascii_uppercase
 
@@ -73,6 +75,12 @@ def int_to_a1(n):
         q, r = divmod(n, 26)
         return int_to_a1(q) + ascii_uppercase[r-1]
 
+def pack(content):
+    return base64.b64encode(zlib.compress(content.encode("utf-8"))).decode('utf-8')
+
+def unpack(zipped_content):
+    return zlib.decompress(base64.b64decode(zipped_content)).decode("utf-8")
+
 class google_authorization(object):
     def __init__(self, parentClass, scopes, credential_dir, application_name, client_id, client_secret_file = 'client_secret.json' ):
         # fix_print_with_import
@@ -87,6 +95,7 @@ class google_authorization(object):
         self.scopes = scopes
         self.client_id = client_id
         self.application_name = application_name
+        self.proxyConnection()
 
         try:
             import argparse
@@ -101,6 +110,30 @@ class google_authorization(object):
             print("self.flags",self.flags)
         except ImportError:
             self.flags = None
+    
+
+    def proxyConnection(self):      
+        s = QSettings()
+        proxyEnabled = s.value("proxy/proxyEnabled", "")
+        proxyType = s.value("proxy/proxyType", "" )
+        proxyHost = s.value("proxy/proxyHost", "" )
+        proxyPort = s.value("proxy/proxyPort", "" )
+        proxyUser = s.value("proxy/proxyUser", "" )
+        proxyPassword = s.value("proxy/proxyPassword", "" )
+        print ("proxySettings",proxyEnabled,type(proxyEnabled),proxyType,type(proxyType))
+        if proxyEnabled and proxyType == 'HttpProxy': # test if there are proxy settings
+            self.proxyConf = httplib2.ProxyInfo(httplib2.socks.PROXY_TYPE_HTTP_NO_TUNNEL, proxyHost, int(proxyPort), proxy_user = proxyUser, proxy_pass = proxyPassword)
+            proxy_url = "http://{}:{}@{}:{}".format(proxyUser,proxyPassword,proxyHost,proxyPort)
+            self.proxyDict = {
+                "http"  : proxy_url,
+                "https" : proxy_url 
+            }
+            for var in ["HTTP_PROXY","HTTPS_PROXY","http_proxy","https_proxy",]:
+                os.environ[var] = proxy_url
+            print("proxyOK", self.proxyDict)
+        else:
+            self.proxyConf =  None
+            self.proxyDict = None
 
     def get_credentials(self):
         """Gets valid user credentials from storage.
@@ -130,30 +163,92 @@ class google_authorization(object):
                 return None
         return credentials
 
+    def getProxyDict(self):
+        return self.proxyDict
+
     def authorize(self):
-        s = QSettings()
-        proxyEnabled = s.value("proxy/proxyEnabled", "")
-        proxyType = s.value("proxy/proxyType", "" )
-        proxyHost = s.value("proxy/proxyHost", "" )
-        proxyPort = s.value("proxy/proxyPort", "" )
-        proxyUser = s.value("proxy/proxyUser", "" )
-        proxyPassword = s.value("proxy/proxyPassword", "" )
-        print ("proxySettings",proxyEnabled,proxyType)
-        if proxyEnabled == "true" and proxyType == 'HttpProxy': # test if there are proxy settings
-            proxyConf = httplib2.ProxyInfo(httplib2.socks.PROXY_TYPE_HTTP_NO_TUNNEL, proxyHost, int(proxyPort), proxy_user = proxyUser, proxy_pass = proxyPassword)
-            proxy_url = "http://{}:{}@{}:{}".format(proxyUser,proxyPassword,proxyHost,proxyPort)
-            for var in ["HTTP_PROXY","HTTPS_PROXY","http_proxy","https_proxy",]:
-                os.environ[var] = proxy_url
-            #print(os.environ)
-        else:
-            proxyConf =  None
-        #print ("proxyConf",proxyConf)
-        self.httpConnection = httplib2shim.Http(ca_certs=os.path.join(self.credential_dir,'cacerts.txt'), timeout=5) #proxy_info = proxyConf,
+        self.httpConnection = httplib2shim.Http(ca_certs=os.path.join(self.credential_dir,'cacerts.txt'), timeout=8) #proxy_info = self.proxyConf,
         auth = self.get_credentials()
         if auth:
             return auth.authorize(self.httpConnection)
         else:
             return None
+
+class service_github(object):
+    repo = 'googis_public_layers'
+    username = 'googis'
+    storage = 'public_metadata'
+    token = username+':57b8f8e87d3bf3c9f5641b696b1aeecdac976b77'
+    api_url = 'https://api.github.com'
+
+    def __init__(self,credentials,DB='metadata_DB'):
+        '''
+        The class is a convenience wrapper to google drive python module
+        :param credentials:
+        '''
+        self.credentials = credentials
+        self.headers = {'Authorization':'Basic {}'.format(base64.b64encode(self.token.encode("utf-8")).decode('utf-8'))}
+        self.DB = DB
+
+    def getDB(self,DB,raw=False):
+        url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, DB)
+        print (url)
+        response = requests.get( url, headers = self.headers, proxies = self.credentials.getProxyDict())
+        if response.status_code == 200:
+            if raw:
+                return response.json()
+            else:
+                return base64.b64decode(response.json()['content']).decode('utf-8')
+        else:
+            {"connection_error": response.status_code, "message": response.text}
+
+    def setDB(self,DB,value,sha=None):
+        #raw_value = self.getKey(key,raw=True)
+        #print ("RAW", raw_value)
+        content = base64.b64encode(json.dumps(value).encode("utf-8")).decode('utf-8')
+        if not sha:
+            sha = hashlib.sha1(content.encode("utf-8")).hexdigest()
+        url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, DB)
+        payload = json.dumps({
+            "message": "Creating DB: {}".format(DB),
+            "content": content,
+            "sha": sha
+        })
+        response = requests.put( url, headers = self.headers, proxies = self.credentials.getProxyDict(), data=payload)
+        print (response.status_code,response.json())
+    
+    def delDB(self,DB,sha=None):
+        if not sha:
+            raw_value = self.getDB(DB)
+            sha = raw_value['sha']
+        payload = json.dumps({
+            "message": "Deleting DB: {}".format(DB),
+            "sha": sha
+        })
+        url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, DB)
+        response = requests.delete( url, headers = self.headers, proxies = self.credentials.getProxyDict(), data=payload)
+        print (response.status_code,response.json())
+
+    def getKey(self,key):
+        DB_content = json.loads(self.getDB(self.DB))
+        if key in DB_content:
+            return DB_content[key]
+        else:
+            return {}
+
+    def setKey(self,key,value):
+        raw_DB_content = self.getDB(self.DB,raw=True)
+        DB_sha = raw_DB_content["sha"]
+        DB_content = json.loads(base64.b64decode(raw_DB_content["content"]).decode('utf-8'))
+        DB_content[key] = value
+        self.setDB(self.DB,DB_content,sha=DB_sha)
+
+    def delKey(self,key):
+        raw_DB_content = self.getDB(self.DB,raw=True)
+        DB_sha = raw_DB_content["sha"]
+        DB_content = json.loads(base64.b64decode(raw_DB_content["content"]).decode('utf-8'))
+        DB_content.pop(key, None)
+        self.setDB(self.DB,DB_content,sha=DB_sha)
 
 
 
@@ -169,6 +264,7 @@ class service_drive(object):
         authorized_http = self.credentials.authorize()
         self.service = discovery.build('drive', 'v3', http=authorized_http)
         self.googis_folder = None
+        self.ghdb = service_github(self.credentials)
 
     def configure_service(self):
         '''
@@ -323,6 +419,20 @@ class service_drive(object):
           }
         }
         result = self.service.files().update(fileId=fileId, body=update_body).execute()
+        return result
+
+    def update_file_metadata(self,fileId,metadata):
+        
+        appProperties = {}
+        for item in metadata:
+            if not (item[0] in ('gdrive_id', 'fields', 'proj4_def')):
+                appProperties[item[0]] =  item[1][:116] #pack(item[1])
+        update_body = {
+          "appProperties": appProperties
+        }
+        #print ("appProperties",update_body)
+        result = self.service.files().update(fileId=fileId, body=update_body).execute()
+        print (result)
         return result
 
     def mark_as_dirty(self,fileId):
@@ -891,6 +1001,21 @@ class service_spreadsheet(object):
         '''
         return self.sheet_cell("settings!A2")
 
+    def abstract(self):
+        '''
+        method to get abstract metadata
+        :return abstract
+        '''
+        return self.sheet_cell("summary!B6")
+
+    def setAbstract(self,abstract):
+        '''
+        method to set abstract metadata from layer abstract
+        :param abstract:
+        :return: None
+        '''
+        return self.set_sheet_cell("summary!B6",set_sheet_cell)
+
     def set_geom_type(self,crs):
         '''
         method to set layer geometry type in the dedicated setting sheet slot
@@ -942,9 +1067,8 @@ class service_spreadsheet(object):
         self.pack_in_cell(mapboxstyle,"settings!A5")
 
     def pack_in_cell(self,content,cell):
-        zip_encoded =  base64.b64encode(zlib.compress(content.encode("utf-8"))).decode('utf-8')
+        zip_encoded =  pack(content)
         self.set_sheet_cell(cell,zip_encoded)
-
 
     def style(self):
         '''
@@ -952,8 +1076,30 @@ class service_spreadsheet(object):
         :return:
         '''
         xmlstyle_zip = self.sheet_cell("settings!A3")
-        return zlib.decompress(base64.b64decode(xmlstyle_zip)).decode("utf-8")
-    
+        return unpack(xmlstyle_zip)
+
+    def update_metadata(self,fileId,metadata):
+
+        print ("metadata",metadata)
+
+        range = 'summary!A1:B8'
+        update_body = {
+            "range": range,
+            "values": metadata,
+        }
+        self.service.spreadsheets().values().update(spreadsheetId=fileId,range=range, body=update_body, valueInputOption='USER_ENTERED').execute()
+
+        appProperties = {}
+        for item in metadata:
+            if not (item[0] in ('gdrive_id', 'fields', 'proj4_def')):
+                appProperties[item[0]] =  item[1][:116] #pack(item[1])
+        update_body = {
+          "appProperties": appProperties
+        }
+
+        result = self.drive.service.files().update(fileId=fileId, body=update_body).execute()
+        return result
+
     def evaluate_formula(self,formula): #SHEET stay for the table layer
         '''
         the method returns a calculated formula on sheet data, requires write access
@@ -1078,12 +1224,14 @@ class service_spreadsheet(object):
         :param hidden:
         :return:
         '''
+        print ("ADD SHEET",title)
         #check if settings exists
         metadata = self.service.spreadsheets().get(spreadsheetId=self.spreadsheetId).execute()
         #print metadata
         check_sheet_exists = None
         for sheet in  metadata['sheets']:
             if sheet['properties']['title'] == title:
+                print ("SHEET")
                 check_sheet_exists = sheet['properties']['sheetId']
                 break
         if check_sheet_exists:
