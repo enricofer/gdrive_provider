@@ -254,7 +254,7 @@ class service_github(object):
     repo = 'googis_public_layers'
     username = 'googis'
     storage = 'public_metadata'
-    token = "%s:%s" % (username, '80fcc7171fc7ffc41a926e9c41c6579b3501475b')
+    token = "%s:%s" % (username, 'bd06cce08f15c3b0d0bbd4c04a9dd0bc9ae32465')
     api_url = 'https://api.github.com'
 
     def __init__(self,credentials):
@@ -290,7 +290,7 @@ class service_github(object):
         response = requests.put( url, headers = self.headers, proxies = self.credentials.getProxyDict(), data=payload)
         print (response.status_code,response.json())
     
-    def delKey(self,key,sha=None):
+    def delKey(self,key):
         sha = self.getKey(key,sha=True)
         payload = json.dumps({
             "message": "Deleting key: {}".format(key),
@@ -299,6 +299,15 @@ class service_github(object):
         url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, key)
         response = requests.delete( url, headers = self.headers, proxies = self.credentials.getProxyDict(), data=payload)
         print (response.status_code,response.json())
+    
+    def listKeys(self):
+        url = "{}/repos/{}/{}/contents/data/".format(self.api_url, self.username, self.repo)
+        response = requests.get( url, headers = self.headers, proxies = self.credentials.getProxyDict())
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print("Error listing keys",response.status_code,response.text)
+
 
 class service_drive(object):
 

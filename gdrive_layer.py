@@ -84,7 +84,7 @@ class progressBar(object):
         widget = self.iface.messageBar().createMessage("GooGIS plugin:",msg)
         progressBar = QProgressBar()
         progressBar.setRange(0,0) #(1,steps)
-        #progressBar.setValue(0)
+        progressBar.setValue(0)
         progressBar.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         widget.layout().addWidget(progressBar)
         QApplication.processEvents()
@@ -109,7 +109,6 @@ class GoogleDriveLayer(QObject):
     dirty = False
     doing_attr_update = False
     geom_types = ("Point", "LineString", "Polygon","Unknown","NoGeometry")
-
 
     def __init__(self, parent, authorization, layer_name, spreadsheet_id = None, loading_layer = None, importing_layer = None, crs_def = None, geom_type = None, test = None):
         '''
@@ -185,6 +184,7 @@ class GoogleDriveLayer(QObject):
         #disable memory layers save checking when closing project
         self.lyr.setCustomProperty("googleDriveId", self.spreadsheet_id)
         self.lyr.setCustomProperty("skipMemoryLayersCheck", 1)
+        self.lyr.setAbstract(self.service_sheet.abstract())
 
         self.add_records()
 
@@ -200,8 +200,6 @@ class GoogleDriveLayer(QObject):
         #create summary if importing
         if importing_layer:
             self.update_summary_sheet()
-        
-        self.lyr.setAbstract(self.service_sheet.abstract())
         self.lyr.gdrive_control = self
         bar.stop("Layer %s succesfully loaded" % layer_name)
 
