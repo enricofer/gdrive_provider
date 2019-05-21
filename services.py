@@ -96,6 +96,7 @@ class google_authorization(object):
         self.client_id = client_id
         self.application_name = application_name
         self.proxyConnection()
+        self.ghdbtoken = unpack('eJxLz89Pzyy2skwytTRPSTYySEw0sDQ2TjJKTkxLSjYzTkkzSDQ3MU81Nko1S7RMswQAZE8ORA==')
 
         try:
             import argparse
@@ -178,7 +179,6 @@ class ex_service_github(object):
     repo = 'googis_public_layers'
     username = 'googis'
     storage = 'public_metadata'
-    token = username+':57b8f8e87d3bf3c9f5641b696b1aeecdac976b77'
     api_url = 'https://api.github.com'
 
     def __init__(self,credentials,DB='metadata_DB'):
@@ -187,7 +187,7 @@ class ex_service_github(object):
         :param credentials:
         '''
         self.credentials = credentials
-        self.headers = {'Authorization':'Basic {}'.format(base64.b64encode(self.token.encode("utf-8")).decode('utf-8'))}
+        self.headers = {'Authorization':'Basic {}'.format(base64.b64encode(self.credentials.ghdbtoken.encode("utf-8")).decode('utf-8'))}
         self.DB = DB
 
     def getDB(self,DB,raw=False):
@@ -254,7 +254,6 @@ class service_github(object):
     repo = 'googis_public_layers'
     username = 'googis'
     storage = 'public_metadata'
-    token = "%s:%s" % (username, 'bd06cce08f15c3b0d0bbd4c04a9dd0bc9ae32465')
     api_url = 'https://api.github.com'
 
     def __init__(self,credentials):
@@ -263,7 +262,7 @@ class service_github(object):
         :param credentials:
         '''
         self.credentials = credentials
-        self.headers = {'Authorization':'Basic {}'.format(base64.b64encode(self.token.encode("utf-8")).decode('utf-8'))}
+        self.headers = {'Authorization':'Basic {}'.format(base64.b64encode(self.credentials.ghdbtoken.encode("utf-8")).decode('utf-8'))}
 
     def getKey(self,key,sha=False):
         url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, key)
