@@ -136,7 +136,6 @@ class GoogleDriveLayer(QObject):
             self.spreadsheet_id = spreadsheet_id
             self.service_sheet = service_spreadsheet(authorization, self.spreadsheet_id)
         elif importing_layer:
-            print("MAPBOX STYLE",self.layer_style_to_json(importing_layer))
             layer_as_list = self.qgis_layer_to_list(importing_layer)
             self.service_sheet = service_spreadsheet(authorization, new_sheet_name=importing_layer.name(), new_sheet_data = layer_as_list)
             self.spreadsheet_id = self.service_sheet.spreadsheetId
@@ -154,22 +153,17 @@ class GoogleDriveLayer(QObject):
         self.crs_def = self.service_sheet.crs()
         self.geom_type = self.service_sheet.geom_type()
         logger("LOADED GOOGLE SHEET LAYER: %s CRS_ID:%s GEOM_type:%s" % (self.service_sheet.name,self.crs_def, self.geom_type))
-        #logger( "GEOM_type "+ self.geom_type)
         # Build up the URI needed to create memory layer
         if loading_layer:
             self.lyr = loading_layer
-            # fix_print_with_import
-            print("LOADIN", self.lyr, loading_layer)
             attrIds = [i for i in range (0, self.lyr.fields().count())]
             self.lyr.dataProvider().deleteAttributes(attrIds)
             self.lyr.updateFields()
         else:
             self.uri = self.uri = "Multi%s?crs=%s&index=yes" % (self.geom_type, self.crs_def)
             #logger(self.uri)
-            # Create the layer
             self.lyr = QgsVectorLayer(self.uri, layer_name, 'memory')
 
-        #print("googleDriveId",self.lyr.setCustomProperty("googleDriveId", self.spreadsheet_id))
         fields_types = self.service_sheet.get_line("ROWS", 1, sheet="settings")
         attributes = []
         for i in range(2,len(self.header)):
@@ -219,14 +213,10 @@ class GoogleDriveLayer(QObject):
         lyr.committedAttributeValuesChanges.connect(self.attributes_changed)
         lyr.destroyed.connect(self.unsubscribe)
         lyr.beforeCommitChanges.connect(self.inspect_changes)
-        #lyr.metadataChanged.connect(self.saveMetadataState)
         lyr.styleChanged.connect(self.style_changed)
         #add contextual menu
-        #self.sync_with_google_drive_action = QAction(QIcon(os.path.join(self.parent.plugin_dir,'sync.png')), "Sync with Google drive", self.iface.legendInterface() )
-        #self.iface.legendInterface().addLegendLayerAction(self.sync_with_google_drive_action, "","01", QgsMapLayer.VectorLayer,False)
-        #self.iface.legendInterface().addLegendLayerActionForLayer(self.sync_with_google_drive_action, lyr)
-        #self.sync_with_google_drive_action.triggered.connect(self.sync_with_google_drive)
         self.sync_with_google_drive_action = QAction(QIcon(os.path.join(self.parent.plugin_dir,'sync.png')), "Sync with Google drive", self.iface )
+        self.iface.addCustomActionForLayerType(self.sync_with_google_drive_action, "", QgsMapLayer.VectorLayer, allLayers=False)
         self.iface.addCustomActionForLayer(self.sync_with_google_drive_action, lyr)
         self.sync_with_google_drive_action.triggered.connect(self.sync_with_google_drive)
 
@@ -244,7 +234,6 @@ class GoogleDriveLayer(QObject):
 
             if status != 'D': #non caricare i deleted
                 wkt_geom = unpack(flds.pop('WKTGEOMETRY'))
-                #print (wkt_geom)
                 #fid = int(flds.pop('FEATUREID'))
                 feature = QgsFeature()
                 geometry = QgsGeometry.fromWkt(wkt_geom)
@@ -258,13 +247,12 @@ class GoogleDriveLayer(QObject):
                             cleared_row.append(attribute)
                     else:
                         logger( "DELETED " + field)
-                #print "cleared_row", cleared_row
                 feature.setAttributes(cleared_row)
                 self.lyr.addFeature(feature)
         self.lyr.commitChanges()
 
     def saveMetadataState(self):
-        print ("metadata changed")
+        logger ("metadata changed")
         self.service_sheet.update_metadata(self.spreadsheet_id,self.get_layer_metadata())
 
     def style_changed(self):
@@ -272,7 +260,6 @@ class GoogleDriveLayer(QObject):
         landing method for rendererChanged signal. It stores xml qgis style definition to the setting sheet
         '''
         logger( "style changed")
-        print("style changed")
         self.service_sheet.set_style_qgis(self.layer_style_to_xml(self.lyr))
         self.service_sheet.set_style_sld(self.SLD_to_xml(self.lyr))
         self.service_sheet.set_style_mapbox(self.layer_style_to_json(self.lyr))
@@ -296,7 +283,6 @@ class GoogleDriveLayer(QObject):
         self.renew_connection()
         bar = progressBar(self, 'updating local layer from remote')
         # fix_print_with_import
-        print("canEdit", self.service_sheet.canEdit)
         if self.service_sheet.canEdit:
             updates = self.service_sheet.get_line('COLUMNS','A', sheet=self.client_id)
             if updates:
@@ -309,7 +295,6 @@ class GoogleDriveLayer(QObject):
             else:
                 updates = []
         # fix_print_with_import
-        print("UPDATES", updates)
         for update in updates:
             decode_update = update.split("|")
             if decode_update[0] in ('new_feature', 'delete_feature', 'update_geometry', 'update_attributes'):
@@ -325,13 +310,11 @@ class GoogleDriveLayer(QObject):
                     feat = next(self.lyr.getFeatures(QgsFeatureRequest(QgsExpression(' "FEATUREID" = %s' % sheet_feature_id))))
                     if   decode_update[0] == 'delete_feature':
                         # fix_print_with_import
-                        print("updating from subscription, delete_feature: " + str(self.lyr.dataProvider().deleteFeatures([feat.id()])))
+                        logger("updating from subscription, delete_feature: " + str(self.lyr.dataProvider().deleteFeatures([feat.id()])))
                     elif decode_update[0] == 'update_geometry':
                         update_set = {feat.id(): QgsGeometry().fromWkt(unpack(sheet_feature[0]))}
                         # fix_print_with_import
-                        print("update_set", update_set)
-                        # fix_print_with_import
-                        print("updating from subscription, update_geometry: " + str(self.lyr.dataProvider().changeGeometryValues(update_set)))
+                        logger("updating from subscription, update_geometry: " + str(self.lyr.dataProvider().changeGeometryValues(update_set)))
                     elif decode_update[0] == 'update_attributes':
                         new_attributes = sheet_feature_id[2:]
                         attributes_map = {}
@@ -339,20 +322,18 @@ class GoogleDriveLayer(QObject):
                             attributes_map[i] = new_attributes[i]
                         update_map = {feat.id(): attributes_map,}
                         # fix_print_with_import
-                        print("update_map", update_map)
-                        # fix_print_with_import
-                        print("updating from subscription, update_attributes: " +(self.lyr.dataProvider().changeAttributeValues(update_map)))
+                        logger("updating from subscription, update_attributes: " +(self.lyr.dataProvider().changeAttributeValues(update_map)))
             elif decode_update[0] == 'add_field':
                 field_a1_notation = self.service_sheet.header_map[decode_update[1]]
                 type_def = self.service_sheet.sheet_cell('settings!%s1' % field_a1_notation)
                 type_def_decoded = type_def.split("|")
                 new_field = QgsField(name=decode_update[1],type=int(type_def_decoded[0]), len=int(type_def_decoded[1]), prec=int(type_def_decoded[2]))
                 # fix_print_with_import
-                print("updating from subscription, add_field: ", + (self.lyr.dataProvider().addAttributes([new_field])))
+                logger("updating from subscription, add_field: ", + (self.lyr.dataProvider().addAttributes([new_field])))
                 self.lyr.updateFields()
             elif decode_update[0] == 'delete_field':
                 # fix_print_with_import
-                print("updating from subscription, delete_field: " + str(self.lyr.dataProvider().deleteAttributes([self.lyr.dataProvider().fields().fieldNameIndex(decode_update[1])])))
+                logger("updating from subscription, delete_field: " + str(self.lyr.dataProvider().deleteAttributes([self.lyr.dataProvider().fields().fieldNameIndex(decode_update[1])])))
                 self.lyr.updateFields()
         self.lyr.triggerRepaint()
         bar.stop("local layer updated")
@@ -363,7 +344,7 @@ class GoogleDriveLayer(QObject):
         changes
         '''
         # fix_print_with_import
-        print("editing")
+        logger("editing")
         self.update_from_subscription()
         self.bar = None
         if self.service_sheet.canEdit:
@@ -436,7 +417,6 @@ class GoogleDriveLayer(QObject):
         self.locks_applied = True
         status_range = []
         for row_id in self.locking_queue:
-            #print "locking_row_id",locking_row_id
             status_range.append(['STATUS', row_id])
         status_control = self.service_sheet.multicell(status_range)
         if "valueRanges" in status_control:
@@ -450,85 +430,12 @@ class GoogleDriveLayer(QObject):
         self.locking_queue = []
         self.timer = 0
 
-    def ex_apply_locks(self):
-        mods = []
-        for row_id in self.locking_queue:
-            #print "locking_row_id",locking_row_id
-            status = self.service_sheet.cell('STATUS', row_id)
-            if status in (None,''):
-                self.service_sheet.set_cell('STATUS', row_id, self.client_id)
-                #mods.append(['STATUS', row_id, self.client_id])
-        if mods:
-            self.service_sheet.set_multicell(mods)
-        self.locking_queue = []
-        self.timer = 0
-
-    def ex_buffer_geometry_changed(self,fid,geom):
-        '''
-        Landing method for geometryChanged signal.
-        When a geometry is modified, the row related to the modified feature is marked as modified by local user.
-        Further edits to the modified feature are denied to other concurrent users
-        :param fid:
-        :param geom:
-        '''
-        if self.editing:
-            if self.test:
-                self.lock_feature(fid)
-            else:
-                # fix_print_with_import
-                print("geom changed fid:",fid, self.locking_queue)
-                _thread.start_new_thread(self.lock_feature, (fid,))
-            #logger("active threads: "+ str( self.activeThreads))
-            #self.lock_feature(fid)
-
-    def ex_buffer_attributes_changed(self,fid,attr_id,value):
-        '''
-        Landing method for attributeValueChanged signal.
-        When an attribute is modified, the row related to the modified feature is marked as modified by local user.
-        Further edits to the modified feature are denied to other concurrent users
-        :param fid:
-        :param attr_id:
-        :param value:
-        '''
-        if self.editing:
-            if self.test:
-                self.lock_feature(fid)
-            else:
-                # fix_print_with_import
-                print("attr changed fid:",fid, self.locking_queue)
-                _thread.start_new_thread(self.lock_feature, (fid,))
-            #logger("active threads: "+ str( self.activeThreads))
-            #print "active threads: ", self.activeThreads
-            #self.lock_feature(fid)
-
-    def ex_lock_feature(self,fid):
-        """
-        The row in google sheet linked to feature that has been modified is locked
-        Filling the the STATUS column with the client_id.
-        Further edits to the modified feature are denied to other concurrent users
-        """
-        self.activeThreads += 1
-        if fid >= 0:
-            self.locking_queue.append(fid)
-            if self.activeThreads < 2: # fid <0 means that the change relates to newly created features not yet present in the sheet
-                while self.locking_queue:
-                    lock_fid = self.locking_queue[0]
-                    self.locking_queue = self.locking_queue[1:]
-                    feature_locking = next(self.lyr.getFeatures(QgsFeatureRequest(lock_fid)))
-                    locking_row_id = feature_locking[0]
-                    status = self.service_sheet.cell('STATUS', locking_row_id)
-                    if status in (None,''):
-                        self.service_sheet.set_cell('STATUS', locking_row_id, self.client_id)
-                        #logger("feature #%s locked by %s" % (locking_row_id, self.client_id))
-
-        self.activeThreads -= 1
-
     def rollBack(self):
         """
         before rollback changes status field is cleared and the edits from concurrent user are allowed
         """
         # fix_print_with_import
-        print("ROLLBACK")
+        logger("ROLLBACK")
         try:
             self.lyr.geometryChanged.disconnect(self.buffer_geometry_changed)
         except:
@@ -553,7 +460,7 @@ class GoogleDriveLayer(QObject):
         Update the remote sheet if changes were committed
         """
         # fix_print_with_import
-        print("EDITING_STOPPED")
+        logger("EDITING_STOPPED")
         self.renew_connection()
         self.clean_status_row()
         if self.service_sheet.canEdit:
@@ -579,7 +486,7 @@ class GoogleDriveLayer(QObject):
             self.service_sheet.add_column([field.name()], fill_with_null = True)
         '''
         # fix_print_with_import
-        print("INSPECT_CHANGES")
+        logger("INSPECT_CHANGES")
         pass
 
     def attributes_added(self, layer, added):
@@ -621,8 +528,6 @@ class GoogleDriveLayer(QObject):
 
         for count,feature in enumerate(features):
             new_fid = self.service_sheet.new_fid()
-            # fix_print_with_import
-            print("NEWFID", new_fid, count)
             self.lyr.dataProvider().changeAttributeValues({feature.id() : {0: new_fid}})
             feature.setAttribute(0, new_fid+count)
             '''
@@ -633,10 +538,8 @@ class GoogleDriveLayer(QObject):
             new_row_dict = {}.fromkeys(self.service_sheet.header,'()')
             new_row_dict['WKTGEOMETRY'] = pack(feature.geometry().asWkt())
             new_row_dict['STATUS'] = '()'
-            print()
             for i,item in enumerate(feature.attributes()):
                 fieldName = self.lyr.fields().at(i).name()
-                # fix_print_with_import
                 try:
                     new_row_dict[fieldName] = item.toString(format = Qt.ISODate)
                 except:
@@ -645,9 +548,7 @@ class GoogleDriveLayer(QObject):
                     else:
                         new_row_dict[fieldName] = item
             new_row_dict['FEATUREID'] = '=ROW()' #assure correspondance between feature and sheet row
-            print(new_row_dict)
             result = self.service_sheet.add_row(new_row_dict)
-            print(result)
             sheet_new_row = int(result['updates']['updatedRange'].split('!A')[1].split(':')[0])
             self.changes_log.append('%s|%s' % ('new_feature', str(new_fid)))
         self.dirty = True
@@ -792,7 +693,6 @@ class GoogleDriveLayer(QObject):
             row = [pack(feat.geometry().asWkt(precision=10)),"()","=ROW()"] # =ROW() perfect row/featureid correspondance
             if len(row[0]) > 10000:
                 # fix_print_with_import
-                print(feat.id, len(row))
             if len(row[0]) > 50000: # ignore features with geometry > 50000 bytes zipped
                 continue
             for field in feat.fields().toList():
@@ -820,7 +720,7 @@ class GoogleDriveLayer(QObject):
         for field in fields.toList():
             types_array.append("%d|%d|%d" % (field.type(), field.length(), field.precision()))
         # fix_print_with_import
-        print("FIELDTYPES",self.service_sheet.update_cells('settings!A1',types_array))
+        self.service_sheet.update_cells('settings!A1',types_array)
 
     def layer_style_to_xml(self,qgis_layer):
         '''
@@ -867,7 +767,6 @@ class GoogleDriveLayer(QObject):
     def layer_style_to_json(self, qgis_layer):
         mapbox_style = toMapboxgl([qgis_layer])
         # fix_print_with_import
-        print(mapbox_style)
         return json.dumps(mapbox_style)
 
     def get_gdrive_id(self):
@@ -921,7 +820,6 @@ class GoogleDriveLayer(QObject):
             ['srid', self.lyr.crs().authid(),],
             ['proj4_def', "'%s" % self.lyr.crs().toProj4(),],
         ]
-        print ("metadata",metadata)
         return metadata
 
     def update_summary_sheet(self):
@@ -931,8 +829,7 @@ class GoogleDriveLayer(QObject):
         #create a layer snapshot and upload it to google drive
         mapbox_style = self.service_sheet.sheet_cell('settings!A5')
         if not mapbox_style:
-            # fix_print_with_import
-            print("migrating mapbox style")
+            logger("migrating mapbox style")
             self.service_sheet.set_style_mapbox(self.layer_style_to_json(self.lyr))
         if not self.dirty:
             return
@@ -940,7 +837,7 @@ class GoogleDriveLayer(QObject):
         canvas.resize(QSize(300,300))
         canvas.setCanvasColor(Qt.white)
         canvas.setExtent(self.lyr.extent())
-        canvas.setLayers([self.lyr]) #([QgsMapCanvasLayer(self.lyr)])
+        canvas.setLayers([self.lyr])
         canvas.refresh()
         canvas.update()
         settings = canvas.mapSettings()
@@ -953,12 +850,8 @@ class GoogleDriveLayer(QObject):
         image.save(tmp_path,"PNG")
         image_istances = self.service_drive.list_files(mimeTypeFilter='image/png',filename=self.service_sheet.name+".png")
         for imagename, image_props in image_istances.items():
-            # fix_print_with_import
-            print(imagename, image_props['id'])
             self.service_drive.delete_file(image_props['id'])
         result = self.service_drive.upload_image(tmp_path)
-        # fix_print_with_import
-        print("UPLOADED", result)
         self.service_drive.add_permission(result['id'],'anyone','reader')
         webLink = 'https://drive.google.com/uc?export=view&id='+result['id']
         os.remove(tmp_path)
@@ -982,10 +875,8 @@ class GoogleDriveLayer(QObject):
                 }
             }]
         }
-        # fix_print_with_import
-        print("merge", self.service_sheet.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheet_id, body=request_body).execute())
-        # fix_print_with_import
-        print("image", self.service_sheet.set_sheet_cell('summary!A10','=IMAGE("%s",3)' % webLink))
+        self.service_sheet.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheet_id, body=request_body).execute()
+        self.service_sheet.set_sheet_cell('summary!A10','=IMAGE("%s",3)' % webLink)
 
         permissions = self.service_drive.file_property(self.spreadsheet_id,'permissions')
         for permission in permissions:
@@ -1000,16 +891,13 @@ class GoogleDriveLayer(QObject):
                 "range": range,
                 "values": [['public link', "https://enricofer.github.io/GooGIS2CSV/converter.html?spreadsheet_id="+self.spreadsheet_id]]
             }
-            # fix_print_with_import
-            print("update_public_link", self.service_sheet.service.spreadsheets().values().update(spreadsheetId=self.spreadsheet_id,range=range, body=update_body, valueInputOption='USER_ENTERED').execute())
+            self.service_sheet.service.spreadsheets().values().update(spreadsheetId=self.spreadsheet_id,range=range, body=update_body, valueInputOption='USER_ENTERED').execute()
 
         #hide worksheets except summary
         sheets = self.service_sheet.get_sheets()
         #self.service_sheet.toggle_sheet('summary', sheets['summary'], hidden=None)
         for sheet_name,sheet_id in sheets.items():
             if not sheet_name == 'summary':
-                # fix_print_with_import
-                print(sheet_name, sheet_id)
                 self.service_sheet.toggle_sheet(sheet_name, sheet_id, hidden=True)
 
 

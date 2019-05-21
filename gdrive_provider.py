@@ -329,9 +329,6 @@ class Google_Drive_Provider(object):
                 if not self.client_id or not self.myDrive:
                     self.updateAccountAction()
                 self.gdrive_layer = GoogleDriveLayer(self, self.authorization, layer.name(), spreadsheet_id=google_id, loading_layer=layer)
-                # fix_print_with_import
-                print("reading", google_id, layer.id(), self.gdrive_layer.lyr.id())
-                #glayer.makeConnections(layer)
                 layer.editingStarted.connect(self.gdrive_layer.editing_started)
                 layer.updateExtents()
 
@@ -508,10 +505,6 @@ class Google_Drive_Provider(object):
         self.dlg.anyoneCanWrite.setChecked(False)
         self.current_spreadsheet_id =  self.available_sheets[item.text()]['id']
         self.current_metadata = self.available_sheets[item.text()]
-        ###TOO SLOW BROWSING
-        #sheet_service = service_spreadsheet(self.authorization, spreadsheetId=self.current_spreadsheet_id)
-        #header = sheet_service.getHeader()
-        #print(header)
 
         page = '''
 <html>
@@ -537,8 +530,6 @@ class Google_Drive_Provider(object):
         thumbnail_rif = self.myDrive.list_files(mimeTypeFilter='image/png', filename=item.text()+'.png' )
         if thumbnail_rif:
             web_link = 'https://drive.google.com/uc?export=view&id='+ thumbnail_rif[item.text()+'.png']['id']
-            # fix_print_with_import
-            print("web_link",web_link)
         else:
             web_link = '_'
 
@@ -552,7 +543,6 @@ class Google_Drive_Provider(object):
         else:
             writeCapability = "read-only file"
 
-        #print (self.current_metadata)
         self.dlg.metadataTable.clear()
         self.dlg.metadataTable.setRowCount(0)
         for row in ['geometry_type', 'srid', 'features', 'extent', "abstract"][::-1]:
@@ -565,10 +555,8 @@ class Google_Drive_Provider(object):
             self.dlg.metadataTable.setItem(0,0,getTableItem(row))
             self.dlg.metadataTable.setItem(0,1,getTableItem(dict(owner=owners, capability=writeCapability, **self.current_metadata)[row]))
         self.dlg.metadataTable.resizeColumnsToContents()
-        #self.dlg.metadataTable.resizeRowsToContents()
         self.dlg.metadataTable.horizontalHeader().setStretchLastSection(True)
 
-        # fix_print_with_import
 
         permission_groups = [
             self.dlg.readListGroupBox,
@@ -606,7 +594,6 @@ class Google_Drive_Provider(object):
 
         glayer_is_loaded = None
         for glayer in self.GooGISLayers():
-            print(glayer,self.isGooGISLayer(glayer),self.current_spreadsheet_id)
             if self.isGooGISLayer(glayer) == self.current_spreadsheet_id:
                 glayer_is_loaded = True
                 break
@@ -620,15 +607,13 @@ class Google_Drive_Provider(object):
         self.sheet_service = service_spreadsheet(self.authorization, spreadsheetId=self.current_spreadsheet_id)
         sheets = self.sheet_service.get_sheets()
         open_activity = list(set(sheets.keys()) - set([self.sheet_service.name, self.client_id,  'settings', 'summary', 'changes_log']))
-        # fix_print_with_import
-        #print(self.client_id,sheets,open_activity)
         if not open_activity:
             self.remove_GooGIS_layers(layerId_to_delete=self.current_spreadsheet_id)
             self.sheet_service.remove_deleted_rows()
             self.sheet_service.remove_deleted_columns()
         else:
             # fix_print_with_import
-            print("CAN'T VACUUM TABLES")
+            logger("CAN'T VACUUM TABLES")
 
     def anyoneCanWriteAction(self,state):
         '''
@@ -699,8 +684,6 @@ class Google_Drive_Provider(object):
         #update public link in summary sheet
         if rw_commander["reader"]['update_publish']: # or rw_commander["writer"]['update_publish']:
             publish_state = rw_commander["reader"]["check_anyone_widget"].isChecked() # or rw_commander["writer"]["check_anyone_widget"].isChecked()
-            # fix_print_with_import
-            print("publish_state",publish_state)
             if publish_state:
                 publicLinkContent = ['public link', "https://enricofer.github.io/GooGIS2CSV/converter.html?spreadsheet_id="+current_spreadsheet_id]
                 self.myDrive.publish_to_web(self.current_metadata)
@@ -717,8 +700,7 @@ class Google_Drive_Provider(object):
                 "range": range,
                 "values": [publicLinkContent]
             }
-            # fix_print_with_import
-            print("update_public_link", service_sheet.service.spreadsheets().values().update(spreadsheetId=current_spreadsheet_id,range=range, body=update_body, valueInputOption='USER_ENTERED').execute())
+            service_sheet.service.spreadsheets().values().update(spreadsheetId=current_spreadsheet_id,range=range, body=update_body, valueInputOption='USER_ENTERED').execute()
 
             self.refresh_available()
 
@@ -733,11 +715,7 @@ class Google_Drive_Provider(object):
         if result:
             self.authorization = google_authorization(self, SCOPES, os.path.join(self.plugin_dir, 'credentials'),
                                                       APPLICATION_NAME, result)
-            # fix_print_with_import
-            print("self.authorization", self.authorization)
             self.myDrive = service_drive(self.authorization)
-            # fix_print_with_import
-            print("self.myDrive", self.myDrive)
             if not self.myDrive:
                 self.updateAccountAction(self, error=True)
             if result != self.client_id:
@@ -777,9 +755,7 @@ class Google_Drive_Provider(object):
         '''
         self.myDrive.renew_connection()
         for layer_id,layer in QgsProject.instance().mapLayers().items():
-            # fix_print_with_import
             googleDriveId = layer.customProperty("googleDriveId", defaultValue=None)
-            #print(layer_id, hasattr(layer, 'gDriveInterface'))
             if googleDriveId :
                 if not layerId_to_delete or googleDriveId == layerId_to_delete:
                     QgsProject.instance().removeMapLayer(layer.id())
@@ -841,7 +817,7 @@ class Google_Drive_Provider(object):
             pass
         except Exception as e:
             # fix_print_with_import
-            print("EXCEPTION", str(e))
+            logger("EXCEPTION " + str(e))
             QApplication.restoreOverrideCursor()
             None
 
@@ -851,5 +827,4 @@ class Google_Drive_Provider(object):
         :return:
         '''
         # fix_print_with_import
-        print (self.myDrive.ghdb.listKeys())
-        print(webMapDialog.get_web_link(self))
+        webMapDialog.get_web_link(self)

@@ -84,7 +84,7 @@ def unpack(zipped_content):
 class google_authorization(object):
     def __init__(self, parentClass, scopes, credential_dir, application_name, client_id, client_secret_file = 'client_secret.json' ):
         # fix_print_with_import
-        print("authorizing:",client_id, application_name, credential_dir)
+        logger ("authorizing: %s %s %s" % (client_id, application_name, credential_dir))
         self.parent = parentClass
         self.credential_dir = os.path.abspath(credential_dir)
         if not os.path.exists(credential_dir):
@@ -96,7 +96,7 @@ class google_authorization(object):
         self.client_id = client_id
         self.application_name = application_name
         self.proxyConnection()
-        self.ghdbtoken = unpack('eJxLz89Pzyy2skwytTRPSTYySEw0sDQ2TjJKTkxLSjYzTkkzSDQ3MU81Nko1S7RMswQAZE8ORA==')
+        self.ghdbtoken = unpack('eJxLz89Pzyy2skwytTRPSTYySEw0sDQ2TjJKTkxLSjYzTkkzSDQ3MU81Nko1S7RMswQAZE8ORA==')#refresh token once a year
 
         try:
             import argparse
@@ -108,7 +108,7 @@ class google_authorization(object):
                 self.flags = argparse.Namespace(auth_host_name='localhost', auth_host_port=[8080, 8090], logging_level='ERROR', noauth_local_webserver=False)
             #self.flags = argparse.ArgumentParser(prog='', usage=None, description=None, version=None, add_help=False).parse_args()
             # fix_print_with_import
-            print("self.flags",self.flags)
+            #print("self.flags",self.flags)
         except ImportError:
             self.flags = None
     
@@ -121,7 +121,6 @@ class google_authorization(object):
         proxyPort = s.value("proxy/proxyPort", "" )
         proxyUser = s.value("proxy/proxyUser", "" )
         proxyPassword = s.value("proxy/proxyPassword", "" )
-        print ("proxySettings",proxyEnabled,type(proxyEnabled),proxyType,type(proxyType))
         if proxyEnabled and proxyType == 'HttpProxy': # test if there are proxy settings
             self.proxyConf = httplib2.ProxyInfo(httplib2.socks.PROXY_TYPE_HTTP_NO_TUNNEL, proxyHost, int(proxyPort), proxy_user = proxyUser, proxy_pass = proxyPassword)
             proxy_url = "http://{}:{}@{}:{}".format(proxyUser,proxyPassword,proxyHost,proxyPort)
@@ -131,7 +130,6 @@ class google_authorization(object):
             }
             for var in ["HTTP_PROXY","HTTPS_PROXY","http_proxy","https_proxy",]:
                 os.environ[var] = proxy_url
-            print("proxyOK", self.proxyDict)
         else:
             self.proxyConf =  None
             self.proxyDict = None
@@ -150,7 +148,6 @@ class google_authorization(object):
         if not credentials or credentials.invalid:
             flow = client.flow_from_clientsecrets(self.secret_path, self.scopes, message='Invalid secret or credentials')
             # fix_print_with_import
-            print("FLOW",flow)
             flow.user_agent = self.application_name
             try:
                 if self.flags:
@@ -158,7 +155,6 @@ class google_authorization(object):
                 else: # Needed only for compatibility with Python 2.6
                     credentials = tools.run(flow, self.store)
                 # fix_print_with_import
-                print("credentials.invalid", credentials.invalid)
                 logger( 'Storing credentials to ' + self.credential_path)
             except:
                 return None
@@ -192,7 +188,6 @@ class ex_service_github(object):
 
     def getDB(self,DB,raw=False):
         url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, DB)
-        print (url)
         response = requests.get( url, headers = self.headers, proxies = self.credentials.getProxyDict())
         if response.status_code == 200:
             if raw:
@@ -215,7 +210,7 @@ class ex_service_github(object):
             "sha": sha
         })
         response = requests.put( url, headers = self.headers, proxies = self.credentials.getProxyDict(), data=payload)
-        print (response.status_code,response.json())
+        response.status_code,response.json()
     
     def delDB(self,DB,sha=None):
         if not sha:
@@ -227,7 +222,7 @@ class ex_service_github(object):
         })
         url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, DB)
         response = requests.delete( url, headers = self.headers, proxies = self.credentials.getProxyDict(), data=payload)
-        print (response.status_code,response.json())
+        response.status_code,response.json()
 
     def getKey(self,key):
         DB_content = json.loads(self.getDB(self.DB))
@@ -266,9 +261,7 @@ class service_github(object):
 
     def getKey(self,key,sha=False):
         url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, key)
-        print (url)
         response = requests.get( url, headers = self.headers, proxies = self.credentials.getProxyDict())
-        print (response.json())
         if response.status_code == 200:
             if sha:
                 return response.json()['sha']
@@ -287,7 +280,6 @@ class service_github(object):
             "sha": sha
         })
         response = requests.put( url, headers = self.headers, proxies = self.credentials.getProxyDict(), data=payload)
-        print (response.status_code,response.json())
     
     def delKey(self,key):
         sha = self.getKey(key,sha=True)
@@ -297,7 +289,6 @@ class service_github(object):
         })
         url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, key)
         response = requests.delete( url, headers = self.headers, proxies = self.credentials.getProxyDict(), data=payload)
-        print (response.status_code,response.json())
     
     def listKeys(self):
         url = "{}/repos/{}/{}/contents/data/".format(self.api_url, self.username, self.repo)
@@ -305,7 +296,7 @@ class service_github(object):
         if response.status_code == 200:
             return response.json()
         else:
-            print("Error listing keys",response.status_code,response.text)
+            logger("Error listing keys %d %s" % (response.status_code,response.text))
 
 
 class service_drive(object):
@@ -373,7 +364,7 @@ class service_drive(object):
             self.list_files()
         except:
             # fix_print_with_import
-            print("renew authorization")
+            logger("renew authorization")
             self.configure_service()
 
     def list_files(self, mimeTypeFilter = 'application/vnd.google-apps.spreadsheet', shared=None, anyone=None, test=None, orderBy='modifiedTime desc', filename=None):
@@ -399,7 +390,6 @@ class service_drive(object):
             app_query = " and trashed = false and appProperties has { key='isGOOGISsheet' and value='OK' }"
         query = "mimeType = '%s'%s%s" % (mimeTypeFilter, app_query, sharedWith)
         raw_list = self.service.files().list(orderBy=orderBy, q=query, fields='files').execute()
-        #print "raw_list", raw_list
         clean_dict = collections.OrderedDict()
         order = 1
         for item in raw_list['files']:
@@ -423,16 +413,16 @@ class service_drive(object):
     def publish_to_web(self, metadata):
         # fix_print_with_import
         spreadsheet_id = metadata["id"]
-        print(self.add_permission(spreadsheet_id, "anyoneWithLink","reader"))
-        print(self.service.revisions().update(fileId=spreadsheet_id, revisionId='head',
-                                        body={'published': True, 'publishAuto': True, "publishedOutsideDomain": True,}).execute())
+        self.add_permission(spreadsheet_id, "anyoneWithLink","reader")
+        self.service.revisions().update(fileId=spreadsheet_id, revisionId='head',
+                                        body={'published': True, 'publishAuto': True, "publishedOutsideDomain": True,}).execute()
 
     def unpublish_to_web(self,metadata):
         # fix_print_with_import
         spreadsheet_id = metadata["id"]
-        print(self.service.permissions().delete(fileId=spreadsheet_id, permissionId='anyoneWithLink'))
-        print(self.service.revisions().update(fileId=spreadsheet_id, revisionId='head',
-                                        body={'published': False, 'publishAuto': False, "publishedOutsideDomain": False,}).execute())
+        self.service.permissions().delete(fileId=spreadsheet_id, permissionId='anyoneWithLink')
+        self.service.revisions().update(fileId=spreadsheet_id, revisionId='head',
+                                        body={'published': False, 'publishAuto': False, "publishedOutsideDomain": False,}).execute()
 
     def add_permission(self, spreadsheet_id, user_id, role, type = 'user'):
         '''
@@ -486,9 +476,7 @@ class service_drive(object):
         update_body = {
           "appProperties": appProperties
         }
-        #print ("appProperties",update_body)
         result = self.service.files().update(fileId=fileId, body=update_body).execute()
-        print (result)
         return result
 
     def mark_as_dirty(self,fileId):
@@ -516,7 +504,6 @@ class service_drive(object):
         }
         result = self.service.files().update(fileId=fileId, addParents=googis_folder).execute()
         # fix_print_with_import
-        print("set_googis_folder",result)
         return result
 
 
@@ -547,10 +534,8 @@ class service_drive(object):
         :return: a csv reader object
         '''
         csv_txt = self.download_file(fileId)
-        #print csv_txt
         csv_file = io.StringIO(csv_txt)
         csv_obj = csv.reader(csv_file,delimiter=',', quotechar='"')
-        #print csv_obj
         return csv_obj
     
     def file_property(self, fileId, property):
@@ -605,7 +590,6 @@ class service_drive(object):
 
     def upload_image(self, filePath):
         googis_folder = self.get_googis_folder_id()
-        # fix_print_with_import
         print("GOOGIS folder", googis_folder)
         body = {
             'name': os.path.basename(filePath),
@@ -615,7 +599,6 @@ class service_drive(object):
         if media:
             res = self.service.files().create(body=body, media_body=media).execute()
             # fix_print_with_import
-            print(res)
             return res
         else:
             return None
@@ -693,7 +676,6 @@ class service_spreadsheet(object):
                 "range": update_range,
                 "values": new_sheet_data,
             }
-            print(self.spreadsheetId,update_range,new_sheet_data[:10])
             result = self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheetId,
                                                                  range=update_range,
                                                                  body=update_body,
@@ -741,11 +723,11 @@ class service_spreadsheet(object):
         if not self.credentials.client_id in current_sheets:
             subscription = self.add_sheet(self.credentials.client_id, hidden=False)
             # fix_print_with_import
-            print("subscription",subscription)
+            logger("subscription "+ subscription)
             return subscription
         else:
             # fix_print_with_import
-            print("error multiple session on the same sheet!")
+            logger("error multiple session on the same sheet!")
             self.erase_cells(self.credentials.client_id)
             return current_sheets[self.credentials.client_id]
 
@@ -767,7 +749,6 @@ class service_spreadsheet(object):
             return None
         result = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheetId, body=update_body).execute()
         # fix_print_with_import
-        print('UNSUBSCRIBE RESULT',result)
         return result
 
     def advertise(self,changes):
@@ -796,7 +777,6 @@ class service_spreadsheet(object):
         :return: None
         '''
         result = self.service.spreadsheets().values().batchGet(spreadsheetId=self.spreadsheetId, ranges=self.name+'!1:1').execute()
-        #print "service_sheet",result
         self.header_map = {}
         self.header = []
         for i, value in enumerate(result['valueRanges'][0]['values'][0]):
@@ -914,10 +894,6 @@ class service_spreadsheet(object):
             for valueRange in status_control["valueRanges"]:
                 if not valueRange["values"][0][0] in ('()', None, lockBy):  # check for locked row
                     row = valueRange["range"].split('B')[-1]
-                    # fix_print_with_import
-                    print("LOCKED ROW:", int(row))
-                    # fix_print_with_import
-                    print("EXPUNGE", int(row), mods_by_row.pop(int(row), None))
 
         if mods_by_row.values():
             value_mods_result = self.set_multicell(mods_by_row.values())
@@ -955,7 +931,6 @@ class service_spreadsheet(object):
             else:
                 continue
         result = self.service.spreadsheets().values().batchUpdate(spreadsheetId=self.spreadsheetId, body=update_body).execute()
-        #print result
         return result
 
     def get_line(self, majorDimension, line, sheet = None):
@@ -1136,8 +1111,6 @@ class service_spreadsheet(object):
 
     def update_metadata(self,fileId,metadata):
 
-        print ("metadata",metadata)
-
         range = 'summary!A1:B8'
         update_body = {
             "range": range,
@@ -1201,8 +1174,6 @@ class service_spreadsheet(object):
         for field in self.header[2:]:
             if field[:8] != 'DELETED_':
                 cleaned_header.append(field)
-        #print "cleaned_header",cleaned_header
-        #print fieldPos,cleaned_header[fieldPos]
         self.set_cell(cleaned_header[fieldPos],1,"DELETED_"+cleaned_header[fieldPos])
         return cleaned_header[fieldPos]
 
@@ -1280,14 +1251,11 @@ class service_spreadsheet(object):
         :param hidden:
         :return:
         '''
-        print ("ADD SHEET",title)
         #check if settings exists
         metadata = self.service.spreadsheets().get(spreadsheetId=self.spreadsheetId).execute()
-        #print metadata
         check_sheet_exists = None
         for sheet in  metadata['sheets']:
             if sheet['properties']['title'] == title:
-                print ("SHEET")
                 check_sheet_exists = sheet['properties']['sheetId']
                 break
         if check_sheet_exists:
@@ -1306,7 +1274,6 @@ class service_spreadsheet(object):
         if no_grid:
             update_body["requests"][0]["addSheet"]["properties"]["gridProperties"]["hideGridlines"] = True
         result = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheetId, body=update_body).execute()
-        #print "add_child_sheet",result
         return result['replies'][0]['addSheet']['properties']['sheetId']
         
     def remove_deleted_rows(self):
@@ -1334,11 +1301,9 @@ class service_spreadsheet(object):
                     )
                     deleted += 1
             # fix_print_with_import
-            print(requests_body)
             if deleted > 0:
                 result = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheetId, body=requests_body).execute()
                 # fix_print_with_import
-                print(result)
 
     def remove_deleted_columns(self):
         ranges = [self.name + '!1:1']
@@ -1353,7 +1318,6 @@ class service_spreadsheet(object):
         deleted = 0
         if 'values' in result['valueRanges'][0]:
             # fix_print_with_import
-            print("VALUES", result['valueRanges'][0]['values'][0])
             for count, column in enumerate (result['valueRanges'][0]['values'][0]):
                 if column[:8] == 'DELETED_':
                     requests_body_main['requests'].append(
@@ -1382,13 +1346,8 @@ class service_spreadsheet(object):
                     )
                     deleted += 1
             # fix_print_with_import
-            print(requests_body_main)
-            # fix_print_with_import
-            print(requests_body_settings)
             if deleted > 0:
                 result = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheetId, body=requests_body_main).execute()
                 # fix_print_with_import
-                print(result)
                 result = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheetId, body=requests_body_settings).execute()
                 # fix_print_with_import
-                print(result)
