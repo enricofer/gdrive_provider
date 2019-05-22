@@ -96,7 +96,7 @@ class google_authorization(object):
         self.client_id = client_id
         self.application_name = application_name
         self.proxyConnection()
-        self.ghdbtoken = unpack('eJxLz89Pzyy2skwytTRPSTYySEw0sDQ2TjJKTkxLSjYzTkkzSDQ3MU81Nko1S7RMswQAZE8ORA==')#refresh token once a year
+        self.ghdbtoken = unpack('eJwFwcENACEIBMCaEBTXblxQ48vH9Z/czHnv3G8wLIXVJpoBTPc9+2KhQKMoRMMByx9i+w3G')#refresh token once a year
 
         try:
             import argparse
@@ -723,7 +723,7 @@ class service_spreadsheet(object):
         if not self.credentials.client_id in current_sheets:
             subscription = self.add_sheet(self.credentials.client_id, hidden=False)
             # fix_print_with_import
-            logger("subscription "+ subscription)
+            logger("subscription %d" % subscription)
             return subscription
         else:
             # fix_print_with_import

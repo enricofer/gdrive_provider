@@ -36,7 +36,7 @@ from qgis.utils import plugins
 
 from qgis.PyQt import  QtGui
 from qgis.PyQt.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QTimer, QUrl, QSize, Qt
-from qgis.PyQt.QtWidgets import QAction, QDialog, QProgressBar, QDialogButtonBox, QListWidgetItem, QApplication, QTableWidgetItem
+from qgis.PyQt.QtWidgets import QAction, QDialog, QProgressBar, QDialogButtonBox, QListWidgetItem, QApplication, QTableWidgetItem, QMessageBox
 from qgis.PyQt.QtGui import QIcon, QPixmap, QCursor
 # Initialize Qt resources from file resources.py
 from . import resources_rc
@@ -236,6 +236,8 @@ class Google_Drive_Provider(object):
         self.dlg.listWidget.itemDoubleClicked.connect(self.run)
         self.dlg.refreshButton.clicked.connect(self.refresh_available)
         self.dlg.webMapLinkButton.clicked.connect(self.webMapLinkAction)
+        self.dlg.deleteTableButton.clicked.connect(self.deleteTable)
+        self.dlg.deleteTableButton.setDisabled(True)
         self.dlg.button_box.button(QDialogButtonBox.Ok).setText("Load")
         self.dlg.helpButton.clicked.connect(self.helpAction)
         self.helpBrowser = internalBrowser("https://enricofer.github.io/gdrive_provider", 'GooGIS help')
@@ -530,8 +532,10 @@ class Google_Drive_Provider(object):
         thumbnail_rif = self.myDrive.list_files(mimeTypeFilter='image/png', filename=item.text()+'.png' )
         if thumbnail_rif:
             web_link = 'https://drive.google.com/uc?export=view&id='+ thumbnail_rif[item.text()+'.png']['id']
+            self.thumbnail_id = thumbnail_rif[item.text()+'.png']['id']
         else:
             web_link = '_'
+            self.thumbnail_id = None
 
         self.dlg.infobox_keymap.page().currentFrame().setHtml(page.format(web_link))
 
@@ -600,8 +604,25 @@ class Google_Drive_Provider(object):
 
         if self.client_id in owners_list and not glayer_is_loaded:
             self.dlg.vacuumTablesButton.setDisabled(False)
+            self.dlg.deleteTableButton.setDisabled(False)
         else:
             self.dlg.vacuumTablesButton.setDisabled(True)
+            self.dlg.deleteTableButton.setDisabled(True)
+
+    def deleteTable(self):
+        self.sheet_service = service_spreadsheet(self.authorization, spreadsheetId=self.current_spreadsheet_id)
+        sheets = self.sheet_service.get_sheets()
+        open_activity = list(set(sheets.keys()) - set([self.sheet_service.name, self.client_id,  'settings', 'summary', 'changes_log']))
+        print (open_activity)
+        if open_activity:
+            QMessageBox.warning(None, "Can't remove googis table", "The layer is currently locked") 
+        else:
+            reply = QMessageBox.question(None, "Removing " + self.current_metadata['name'], "Do you really want to trash table?", QMessageBox.Yes, QMessageBox.No) 
+            if reply == QMessageBox.Yes:
+                self.myDrive.trash_file(self.current_spreadsheet_id)
+                if self.thumbnail_id:
+                    self.myDrive.trash_file(self.thumbnail_id)
+                self.refresh_available() 
 
     def vacuumTablesAction(self):
         self.sheet_service = service_spreadsheet(self.authorization, spreadsheetId=self.current_spreadsheet_id)
@@ -613,6 +634,7 @@ class Google_Drive_Provider(object):
             self.sheet_service.remove_deleted_columns()
         else:
             # fix_print_with_import
+            QMessageBox.warning(None, "Can't vacuum googis table", "The layer is currently locked") 
             logger("CAN'T VACUUM TABLES")
 
     def anyoneCanWriteAction(self,state):
@@ -759,6 +781,17 @@ class Google_Drive_Provider(object):
             if googleDriveId :
                 if not layerId_to_delete or googleDriveId == layerId_to_delete:
                     QgsProject.instance().removeMapLayer(layer.id())
+
+    def googis_layer_is_loaded(self, sheetId):
+        '''
+        Method to check if googis layer is loaded in canvas
+        '''
+        self.myDrive.renew_connection()
+        for layer_id,layer in QgsProject.instance().mapLayers().items():
+            googleDriveId = layer.customProperty("googleDriveId", defaultValue=None)
+            if sheetId == googleDriveId:
+                return True
+                
 
     def run(self):
         """

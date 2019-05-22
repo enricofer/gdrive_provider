@@ -691,8 +691,6 @@ class GoogleDriveLayer(QObject):
         rows = [row]
         for feat in qgis_layer.getFeatures():
             row = [pack(feat.geometry().asWkt(precision=10)),"()","=ROW()"] # =ROW() perfect row/featureid correspondance
-            if len(row[0]) > 10000:
-                # fix_print_with_import
             if len(row[0]) > 50000: # ignore features with geometry > 50000 bytes zipped
                 continue
             for field in feat.fields().toList():
