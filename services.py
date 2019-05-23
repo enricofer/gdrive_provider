@@ -35,6 +35,7 @@ __copyright__ = 'Copyright 2017, Enrico Ferreguti'
 
 #QT specific
 from qgis.PyQt.QtCore import QSettings
+from qgis.PyQt.QtWidgets import QApplication
 
 #QGIS specific
 from qgis.core import QgsMessageLog, NULL
@@ -737,19 +738,8 @@ class service_spreadsheet(object):
         the client_id sheet is removed
         :return: response object
         '''
-        try:
-            update_body ={
-                "requests":{
-                    "deleteSheet":{
-                        "sheetId": self.subscription,
-                    }
-                }
-            }
-        except:
-            return None
-        result = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheetId, body=update_body).execute()
-        # fix_print_with_import
-        return result
+        if not self.remove_sheet(self.subscription):
+            logger ("Cant' unsubstribe")
 
     def advertise(self,changes):
         '''
@@ -1275,7 +1265,34 @@ class service_spreadsheet(object):
             update_body["requests"][0]["addSheet"]["properties"]["gridProperties"]["hideGridlines"] = True
         result = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheetId, body=update_body).execute()
         return result['replies'][0]['addSheet']['properties']['sheetId']
+    
+    def remove_sheet(self,sheetName):
+        '''
+        method to remove a sheet
+        :return: response object
+        '''
+        sheetId = None
+        metadata = self.service.spreadsheets().get(spreadsheetId=self.spreadsheetId).execute()
+        for sheet in metadata["sheets"]:
+            if sheet["properties"]["title"] == sheetName:
+                sheetId = sheet["properties"]["sheetId"]
         
+        QApplication.processEvents()
+        if sheetId:
+            update_body ={
+                "requests":{
+                    "deleteSheet":{
+                        "sheetId": sheetId,
+                    }
+                }
+            }
+            result = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheetId, body=update_body).execute()
+            # fix_print_with_import
+            return result
+        else:
+            logger ("Can't find sheet" + sheetName)
+            return None
+
     def remove_deleted_rows(self):
         ranges = [self.name + '!B2:C']
         result = self.service.spreadsheets().values().batchGet(spreadsheetId=self.spreadsheetId,ranges=ranges).execute()

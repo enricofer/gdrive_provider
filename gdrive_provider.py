@@ -52,6 +52,7 @@ import io
 import collections
 import re
 from email.utils import parseaddr
+from functools import wraps
 
 from .services import google_authorization, service_drive, service_spreadsheet, service_github
 
@@ -67,6 +68,19 @@ CLIENT_SECRET_FILE = 'GooGIS_client_secret.json'
 APPLICATION_NAME = 'GooGIS plugin'
 
 logger = lambda msg: QgsMessageLog.logMessage(msg, 'Googe Drive Provider', 1)
+
+def toggleProgressBar(method):
+    wraps(method)
+    def wrapper(self=None, *args, **kwargs):
+        print (method,args)
+        self.dlg.mainDialogProgressBar.show()
+        self.dlg.mainDialogProgressBar.setRange(0,0)
+        self.dlg.mainDialogProgressBar.setValue(0)
+        QApplication.processEvents()
+        method(self,*args, **kwargs)
+        QApplication.processEvents()
+        self.dlg.mainDialogProgressBar.hide()
+    return wrapper
 
 class Google_Drive_Provider(object):
     """QGIS Plugin Implementation."""
@@ -224,6 +238,9 @@ class Google_Drive_Provider(object):
         self.dlg.anyoneCanRead.stateChanged.connect(self.anyoneCanReadAction)
         #self.dlg.updateWriteListButton.clicked.connect(self.updateReadWriteListAction)
         self.dlg.vacuumTablesButton.clicked.connect(self.vacuumTablesAction)
+        self.dlg.vacuumTablesButton.setDisabled(True)
+        self.dlg.unlockTableButton.clicked.connect(self.unlockTableAction)
+        self.dlg.unlockTableButton.setDisabled(True)
         #self.dlg.textEdit_sample.hide()
         #self.dlg.infoTextBox.hide()
         self.dlg.metadataTable.setRowCount(0)
@@ -240,6 +257,7 @@ class Google_Drive_Provider(object):
         self.dlg.deleteTableButton.setDisabled(True)
         self.dlg.button_box.button(QDialogButtonBox.Ok).setText("Load")
         self.dlg.helpButton.clicked.connect(self.helpAction)
+        self.dlg.mainDialogProgressBar.hide()
         self.helpBrowser = internalBrowser("https://enricofer.github.io/gdrive_provider", 'GooGIS help')
         orderByDict = collections.OrderedDict([
             ("order by modified time; descending", "modifiedTime desc"),
@@ -605,26 +623,29 @@ class Google_Drive_Provider(object):
         if self.client_id in owners_list and not glayer_is_loaded:
             self.dlg.vacuumTablesButton.setDisabled(False)
             self.dlg.deleteTableButton.setDisabled(False)
+            self.dlg.unlockTableButton.setDisabled(False)
         else:
             self.dlg.vacuumTablesButton.setDisabled(True)
             self.dlg.deleteTableButton.setDisabled(True)
+            self.dlg.unlockTableButton.setDisabled(True)
 
-    def deleteTable(self):
+    @toggleProgressBar
+    def deleteTable(self,checked):
         self.sheet_service = service_spreadsheet(self.authorization, spreadsheetId=self.current_spreadsheet_id)
         sheets = self.sheet_service.get_sheets()
         open_activity = list(set(sheets.keys()) - set([self.sheet_service.name, self.client_id,  'settings', 'summary', 'changes_log']))
-        print (open_activity)
         if open_activity:
-            QMessageBox.warning(None, "Can't remove googis table", "The layer is currently locked") 
+            QMessageBox.warning(None, "Can't remove googis table", "The layer is currently locked by: " + ", ".join(open_activity)) 
         else:
             reply = QMessageBox.question(None, "Removing " + self.current_metadata['name'], "Do you really want to trash table?", QMessageBox.Yes, QMessageBox.No) 
             if reply == QMessageBox.Yes:
                 self.myDrive.trash_file(self.current_spreadsheet_id)
                 if self.thumbnail_id:
                     self.myDrive.trash_file(self.thumbnail_id)
-                self.refresh_available() 
+                self.refresh_available()
 
-    def vacuumTablesAction(self):
+    @toggleProgressBar
+    def vacuumTablesAction(self,checked):
         self.sheet_service = service_spreadsheet(self.authorization, spreadsheetId=self.current_spreadsheet_id)
         sheets = self.sheet_service.get_sheets()
         open_activity = list(set(sheets.keys()) - set([self.sheet_service.name, self.client_id,  'settings', 'summary', 'changes_log']))
@@ -636,6 +657,19 @@ class Google_Drive_Provider(object):
             # fix_print_with_import
             QMessageBox.warning(None, "Can't vacuum googis table", "The layer is currently locked") 
             logger("CAN'T VACUUM TABLES")
+
+    @toggleProgressBar
+    def unlockTableAction(self,checked):
+        self.sheet_service = service_spreadsheet(self.authorization, spreadsheetId=self.current_spreadsheet_id)
+        sheets = self.sheet_service.get_sheets()
+        open_activity = list(set(sheets.keys()) - set([self.sheet_service.name, self.client_id,  'settings', 'summary', 'changes_log']))
+        print (open_activity)
+        if open_activity:
+            reply = QMessageBox.question(None, "Unlock table", "The layer is currently locked by: {}.\n Do you want to unlock and disconnect users?".format(", ".join(open_activity)), QMessageBox.Yes, QMessageBox.No) 
+            if reply == QMessageBox.Yes:
+                for connected_user in open_activity:
+                    self.sheet_service.remove_sheet(connected_user)
+
 
     def anyoneCanWriteAction(self,state):
         '''
@@ -661,7 +695,7 @@ class Google_Drive_Provider(object):
         '''
         Method to sincronize read write boxes with current item metadata
         '''
-
+        self.dlg.mainDialogProgressBar.show()
         try:
             current_spreadsheet_id = self.current_metadata['id']
         except:
@@ -725,6 +759,7 @@ class Google_Drive_Provider(object):
             service_sheet.service.spreadsheets().values().update(spreadsheetId=current_spreadsheet_id,range=range, body=update_body, valueInputOption='USER_ENTERED').execute()
 
             self.refresh_available()
+        self.dlg.mainDialogProgressBar.hide()
 
 
     def updateAccountAction(self, error=None):
@@ -732,7 +767,7 @@ class Google_Drive_Provider(object):
         Method to update current google drive user
         :param error:
         """
-
+        self.dlg.mainDialogProgressBar.show()
         result = accountDialog.get_new_account(self.client_id, error=error)
         if result:
             self.authorization = google_authorization(self, SCOPES, os.path.join(self.plugin_dir, 'credentials'),
@@ -746,6 +781,7 @@ class Google_Drive_Provider(object):
                 s.setValue("GooGIS/gdrive_account", self.client_id)
                 self.remove_GooGIS_layers()
                 self.run()
+        self.dlg.mainDialogProgressBar.hide()
 
 
     def exportToGDriveAction(self):

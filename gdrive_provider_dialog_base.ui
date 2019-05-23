@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>766</width>
+    <width>691</width>
     <height>493</height>
    </rect>
   </property>
@@ -246,7 +246,7 @@
             <number>0</number>
            </property>
            <item>
-            <widget class="QWebView" name="infobox_keymap">
+            <widget class="QWebView" name="infobox_keymap" native="true">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                <horstretch>0</horstretch>
@@ -259,7 +259,7 @@
                <height>16777215</height>
               </size>
              </property>
-             <property name="url">
+             <property name="url" stdset="0">
               <url>
                <string>about:blank</string>
               </url>
@@ -482,6 +482,13 @@
           <number>0</number>
          </property>
          <item>
+          <widget class="QPushButton" name="unlockTableButton">
+           <property name="text">
+            <string>Unlock table</string>
+           </property>
+          </widget>
+         </item>
+         <item>
           <widget class="QPushButton" name="deleteTableButton">
            <property name="text">
             <string>delete table</string>
@@ -516,6 +523,9 @@
    </item>
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout">
+     <property name="spacing">
+      <number>5</number>
+     </property>
      <item>
       <widget class="QPushButton" name="exportToGDriveButton">
        <property name="text">
@@ -558,7 +568,32 @@
       </spacer>
      </item>
      <item>
+      <widget class="QProgressBar" name="mainDialogProgressBar">
+       <property name="maximumSize">
+        <size>
+         <width>75</width>
+         <height>16777215</height>
+        </size>
+       </property>
+       <property name="maximum">
+        <number>0</number>
+       </property>
+       <property name="value">
+        <number>-1</number>
+       </property>
+       <property name="textVisible">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QDialogButtonBox" name="button_box">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
        </property>
