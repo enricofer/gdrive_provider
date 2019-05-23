@@ -54,7 +54,7 @@ import re
 from email.utils import parseaddr
 from functools import wraps
 
-from .services import google_authorization, service_drive, service_spreadsheet, service_github
+from .services import google_authorization, service_drive, service_spreadsheet, service_github, pack
 
 try:
     from pydevd import *
@@ -865,6 +865,12 @@ class Google_Drive_Provider(object):
         '''
         if not layer:
             layer = self.iface.activeLayer()
+        
+        if not self.checkLayerGeometrySize(layer):
+            reply = QMessageBox.question(None, "Complex Geometries", "The selected features have complex geometries that can't be stored in googis layers and will be lost.\n The encoded geometry lenght should be less than 50000 chars and should be simplified before being stored in google drive.\n Do you really want to continue losing the selected features?", QMessageBox.Yes, QMessageBox.No) 
+            if reply == QMessageBox.No:
+                return
+
         if not self.client_id or not self.myDrive:
             self.updateAccountAction()           
         #try:
@@ -889,6 +895,19 @@ class Google_Drive_Provider(object):
             logger("EXCEPTION " + str(e))
             QApplication.restoreOverrideCursor()
             None
+
+    def checkLayerGeometrySize(self,layer):
+        selected_fids = []
+        for feat in layer.getFeatures():
+            encoded_geom = pack(feat.geometry().asWkt())
+            print (len(encoded_geom))
+            if len(encoded_geom) > 50000:
+                selected_fids.append(feat.id())
+        if selected_fids:
+            layer.select(selected_fids)
+            return False
+        else:
+            return True
 
     def webMapLinkAction(self):
         '''
