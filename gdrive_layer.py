@@ -137,7 +137,7 @@ class GoogleDriveLayer(QObject):
             self.service_sheet = service_spreadsheet(authorization, self.spreadsheet_id)
         elif importing_layer:
             layer_as_list = self.qgis_layer_to_list(importing_layer)
-            self.service_sheet = service_spreadsheet(authorization, new_sheet_name=importing_layer.name(), new_sheet_data = layer_as_list)
+            self.service_sheet = service_spreadsheet(authorization, new_sheet_name=importing_layer.name(),new_sheet_data=True)
             self.spreadsheet_id = self.service_sheet.spreadsheetId
             self.service_sheet.set_crs(importing_layer.crs().authid())
             self.service_sheet.set_geom_type(self.geom_types[importing_layer.geometryType()])
@@ -145,7 +145,10 @@ class GoogleDriveLayer(QObject):
             self.service_sheet.set_style_sld(self.SLD_to_xml(importing_layer))
             self.service_sheet.set_style_mapbox(self.layer_style_to_json(importing_layer))
             self.dirty = True
-            self.saveFieldTypes(importing_layer.fields())
+            self.saveFieldTypes(importing_layer.fields())        
+            self.update_summary_sheet(importing_layer)
+            self.saveMetadataState(importing_layer)
+            self.service_sheet.upload_rows(layer_as_list)
 
         self.reader = self.service_sheet.get_sheet_values()
         self.header = self.reader[0]
@@ -178,7 +181,6 @@ class GoogleDriveLayer(QObject):
         #disable memory layers save checking when closing project
         self.lyr.setCustomProperty("googleDriveId", self.spreadsheet_id)
         self.lyr.setCustomProperty("skipMemoryLayersCheck", 1)
-        self.lyr.setAbstract(self.service_sheet.abstract())
 
         self.add_records()
 
@@ -188,12 +190,8 @@ class GoogleDriveLayer(QObject):
         # Add the layer the map
         if not loading_layer:
             QgsProject.instance().addMapLayer(self.lyr)
-        else:
-            pass
-            #self.lyr.editingStarted.emit()
-        #create summary if importing
-        if importing_layer:
-            self.update_summary_sheet()
+        
+        self.lyr.setAbstract(self.service_sheet.abstract())
         self.lyr.gdrive_control = self
         bar.stop("Layer %s succesfully loaded" % layer_name)
 
@@ -251,9 +249,9 @@ class GoogleDriveLayer(QObject):
                 self.lyr.addFeature(feature)
         self.lyr.commitChanges()
 
-    def saveMetadataState(self):
+    def saveMetadataState(self,lyr=None):
         logger ("metadata changed")
-        self.service_sheet.update_metadata(self.spreadsheet_id,self.get_layer_metadata())
+        self.service_sheet.update_metadata(self.spreadsheet_id,self.get_layer_metadata(lyr))
 
     def style_changed(self):
         '''
@@ -788,7 +786,7 @@ class GoogleDriveLayer(QObject):
         '''
         return self.service_sheet
 
-    def get_layer_metadata(self):
+    def get_layer_metadata(self,lyr=None):
         '''
         builds a metadata dict of the current layer to be stored in summary sheet
         '''
@@ -799,32 +797,39 @@ class GoogleDriveLayer(QObject):
 
         def transformToWGS84(pPoint ):
             crsDest = QgsCoordinateReferenceSystem(4326)  # WGS 84
-            xform = QgsCoordinateTransform(self.lyr.crs(), crsDest, QgsProject.instance())
+            xform = QgsCoordinateTransform(lyr.crs(), crsDest, QgsProject.instance())
             return xform.transform(pPoint) # forward transformation: src -> dest
+
+        if not lyr:
+            lyr = self.lyr
 
         #fields = collections.OrderedDict()
         fields = ""
-        for field in self.lyr.fields().toList():
+        for field in lyr.fields().toList():
             fields += field.name()+'_'+QVariant.typeToName(field.type())+'|'+str(field.length())+'|'+str(field.precision())+' '
         #metadata = collections.OrderedDict()
         metadata = [
-            ['layer_name', self.lyr.name(),],
+            ['layer_name', lyr.name(),],
             ['gdrive_id', self.service_sheet.spreadsheetId,],
-            ['geometry_type', self.geom_types[self.lyr.geometryType()],],
-            ['features', "'%s" % str(self.lyr.featureCount()),],
-            ['extent', wgs84_extent(self.lyr.extent()).asWktCoordinates(),],
+            ['geometry_type', self.geom_types[lyr.geometryType()],],
+            ['features', "'%s" % str(lyr.featureCount()),],
+            ['extent', wgs84_extent(lyr.extent()).asWktCoordinates(),],
             #['fields', fields,],
-            ['abstract', self.lyr.abstract(),],
-            ['srid', self.lyr.crs().authid(),],
-            ['proj4_def', "'%s" % self.lyr.crs().toProj4(),],
+            ['abstract', lyr.abstract(),],
+            ['srid', lyr.crs().authid(),],
+            ['proj4_def', "'%s" % lyr.crs().toProj4(),],
         ]
         return metadata
 
-    def update_summary_sheet(self):
+    def update_summary_sheet(self,lyr=None):
         '''
         Creates a summary sheet with thumbnail, layer metadata and online view link
         '''
         #create a layer snapshot and upload it to google drive
+
+        if not lyr:
+            lyr = self.lyr
+
         mapbox_style = self.service_sheet.sheet_cell('settings!A5')
         if not mapbox_style:
             logger("migrating mapbox style")
@@ -834,12 +839,12 @@ class GoogleDriveLayer(QObject):
         canvas = QgsMapCanvas()
         canvas.resize(QSize(300,300))
         canvas.setCanvasColor(Qt.white)
-        canvas.setExtent(self.lyr.extent())
-        canvas.setLayers([self.lyr])
+        canvas.setExtent(lyr.extent())
+        canvas.setLayers([lyr])
         canvas.refresh()
         canvas.update()
         settings = canvas.mapSettings()
-        settings.setLayers([self.lyr])
+        settings.setLayers([lyr])
         job = QgsMapRendererParallelJob(settings)
         job.start()
         job.waitForFinished()

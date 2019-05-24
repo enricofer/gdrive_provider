@@ -165,7 +165,7 @@ class google_authorization(object):
         return self.proxyDict
 
     def authorize(self):
-        self.httpConnection = httplib2shim.Http(ca_certs=os.path.join(self.credential_dir,'cacerts.txt'), timeout=8) #proxy_info = self.proxyConf,
+        self.httpConnection = httplib2shim.Http(ca_certs=os.path.join(self.credential_dir,'cacerts.txt'), timeout=180) #proxy_info = self.proxyConf,
         auth = self.get_credentials()
         if auth:
             return auth.authorize(self.httpConnection)
@@ -649,6 +649,7 @@ class service_spreadsheet(object):
         :param new_sheet_name:
         :param new_sheet_data:
         '''
+
         self.credentials = credentials
         self.get_service()
         self.drive = service_drive(credentials)
@@ -661,33 +662,29 @@ class service_spreadsheet(object):
                     "title": new_sheet_name,
                     "locale": "en"
                 },
-            "sheets": [
-                {
-                    "properties": {
-                        "title": new_sheet_name,
-                    },
-                }
-            ]
+                "sheets": [
+                    {
+                        "properties": {
+                            "title": new_sheet_name,
+                        },
+                    }
+                ]
             }
             result = self.service.spreadsheets().create(body=create_body).execute()
             self.spreadsheetId = result["spreadsheetId"]
             self.name = new_sheet_name
-            update_range = new_sheet_name+"!A1"
-            update_body = {
-                "range": update_range,
-                "values": new_sheet_data,
-            }
-            result = self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheetId,
-                                                                 range=update_range,
-                                                                 body=update_body,
-                                                                 valueInputOption='USER_ENTERED').execute()
+            
+            '''
+            result = self.service.spreadsheets().values().batchUpdate(spreadsheetId=self.spreadsheetId,
+                                                                 body=update_body).execute()
+            '''
             self.drive.set_googis_folder(self.spreadsheetId)
+
         else:
             raise Exception("service_sheet error: no sheet parameters provided")
-            return
 
-        capabilities = self.drive.file_property(self.spreadsheetId,"capabilities")
-        self.update_header()
+
+        capabilities = self.drive.file_property(self.spreadsheetId,"capabilities")   
         self.canEdit = capabilities['canEdit']
         if self.canEdit:
             self.add_sheet('settings', hidden=False)
@@ -697,6 +694,29 @@ class service_spreadsheet(object):
             self.drive.mark_as_GooGIS_sheet(self.spreadsheetId)
         else:
             self.changes_log_rows = self.get_line("COLUMNS",'A',sheet="changes_log")
+
+    def upload_rows(self,new_sheet_data):
+        block_size = 1000
+
+        for block in range(0,len(new_sheet_data),block_size):
+            lower_limit = block
+            upper_limit = len(new_sheet_data) if (block + block_size) > len(new_sheet_data)  else block + block_size
+
+            update_range = "{}!A{}".format(self.name,block+1)
+            block_data = new_sheet_data[lower_limit:upper_limit]
+
+            update_body = {
+                "range": update_range,
+                "values": block_data,
+            }
+                
+            logger ("COUNT {} {} {}".format(lower_limit, upper_limit, update_range))
+            result = self.service.spreadsheets().values().append(spreadsheetId=self.spreadsheetId,
+                                                                range=update_range,
+                                                                body=update_body,
+                                                                valueInputOption='USER_ENTERED').execute()
+            print(result)
+            self.update_header()
 
     def get_service(self):
         '''
@@ -738,7 +758,7 @@ class service_spreadsheet(object):
         the client_id sheet is removed
         :return: response object
         '''
-        if not self.remove_sheet(self.subscription):
+        if not self.remove_sheet(self.credentials.client_id):
             logger ("Cant' unsubstribe")
 
     def advertise(self,changes):
@@ -1234,7 +1254,7 @@ class service_spreadsheet(object):
         return A1_new_col
 
     
-    def add_sheet(self, title, hidden=False, no_grid=False):
+    def add_sheet(self, title, hidden=False, no_grid=False, retry=0):
         '''
         the method adds e new child sheet to the spreadsheet
         :param title: sheet title
