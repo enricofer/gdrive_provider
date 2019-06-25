@@ -509,6 +509,7 @@ class Google_Drive_Provider(object):
                     permissions[permission['emailAddress']] = permission['role']
         return permissions
 
+    @toggleProgressBar
     def viewMetadata(self,item,prev):
         '''
         Method for populating item details slots (metadata, thumbnail, permissions) on list widget selection
@@ -693,7 +694,8 @@ class Google_Drive_Provider(object):
         else:
             self.dlg.readListTextBox.setDisabled(False)
 
-    def updateReadWriteListAction(self):
+    @toggleProgressBar
+    def updateReadWriteListAction(self,checked):
         '''
         Method to sincronize read write boxes with current item metadata
         '''
@@ -848,6 +850,7 @@ class Google_Drive_Provider(object):
         if result and self.dlg.listWidget.selectedItems():
             self.load_sheet(self.dlg.listWidget.selectedItems()[0])
 
+    @toggleProgressBar
     def load_sheet(self,item):
         '''
         Method for loading as QGIS layer the selected google drive layer
@@ -859,6 +862,7 @@ class Google_Drive_Provider(object):
         self.myDrive.configure_service()
         self.gdrive_layer = GoogleDriveLayer(self, self.authorization, sheet_name, spreadsheet_id=sheet_id)
 
+    @toggleProgressBar
     def dup_to_google_drive(self, layer = None):
         '''
         Method for duplicating a current QGIS layer to a Google drive sheet (AKA GooGIS layer)
