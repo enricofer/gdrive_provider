@@ -46,6 +46,7 @@ import base64
 import zlib
 import _thread
 import traceback
+import inspect
 from time import sleep
 
 from tempfile import NamedTemporaryFile
@@ -57,14 +58,13 @@ from qgis.PyQt.QtCore import QObject, pyqtSignal, QThread, QVariant, QSize, Qt
 
 from qgis.core import (QgsVectorLayer, QgsFeature, QgsGeometry, QgsExpression, QgsField, QgsMapLayer, QgsMapRendererParallelJob,
                        QgsFeatureRequest, QgsMessageLog,QgsCoordinateReferenceSystem, Qgis, QgsReadWriteContext, QgsProject,
-                       QgsCoordinateTransform, QgsCoordinateReferenceSystem, QgsPointXY, QgsRectangle)
+                       QgsCoordinateTransform, QgsCoordinateReferenceSystem, QgsPointXY, QgsRectangle, QgsMapSettingsUtils)
 
 from qgis.gui import QgsMessageBar, QgsMapCanvas
 
 import qgis.core
 
-logger = lambda msg: QgsMessageLog.logMessage(msg, 'Googe Drive Provider', 1)
-
+logger = lambda msg: QgsMessageLog.logMessage("(%s.%s)  %s" % (inspect.stack()[1][0].f_locals['self'].__class__.__name__, inspect.stack()[1][3], msg), 'Google Drive Provider', 0)
 
 from .services import pack, unpack, google_authorization, service_drive, service_spreadsheet
 
@@ -137,21 +137,24 @@ class GoogleDriveLayer(QObject):
             self.service_sheet = service_spreadsheet(authorization, self.spreadsheet_id)
         elif importing_layer:
             layer_as_list = self.qgis_layer_to_list(importing_layer)
+            logger("1")
             self.service_sheet = service_spreadsheet(authorization, new_sheet_name=importing_layer.name(),new_sheet_data=True)
             self.spreadsheet_id = self.service_sheet.spreadsheetId
+            logger("2")
             self.service_sheet.set_crs(importing_layer.crs().authid())
             self.service_sheet.set_geom_type(self.geom_types[importing_layer.geometryType()])
             self.service_sheet.set_style_qgis(self.layer_style_to_xml(importing_layer))
             self.service_sheet.set_style_sld(self.SLD_to_xml(importing_layer))
             self.service_sheet.set_style_mapbox(self.layer_style_to_json(importing_layer))
             self.dirty = True
-            self.saveFieldTypes(importing_layer.fields())        
-            self.update_summary_sheet(importing_layer)
-            self.saveMetadataState(importing_layer)
+            self.saveFieldTypes(importing_layer.fields())  
+            logger("5")
             self.service_sheet.upload_rows(layer_as_list)
+            logger("6")
 
         self.reader = self.service_sheet.get_sheet_values()
         self.header = self.reader[0]
+        self.service_sheet.update_header()
 
         self.crs_def = self.service_sheet.crs()
         self.geom_type = self.service_sheet.geom_type()
@@ -162,10 +165,17 @@ class GoogleDriveLayer(QObject):
             attrIds = [i for i in range (0, self.lyr.fields().count())]
             self.lyr.dataProvider().deleteAttributes(attrIds)
             self.lyr.updateFields()
+            self.update_summary_sheet()
         else:
             self.uri = self.uri = "Multi%s?crs=%s&index=yes" % (self.geom_type, self.crs_def)
             #logger(self.uri)
             self.lyr = QgsVectorLayer(self.uri, layer_name, 'memory')
+
+        if importing_layer:
+            logger("3")
+            self.update_summary_sheet() 
+            logger("4")
+            self.saveMetadataState(importing_layer)
 
         fields_types = self.service_sheet.get_line("ROWS", 1, sheet="settings")
         attributes = []
@@ -786,19 +796,20 @@ class GoogleDriveLayer(QObject):
         '''
         return self.service_sheet
 
+    def wgs84_extent(self,extent):
+        llp = self.transformToWGS84(QgsPointXY(extent.xMinimum(),extent.yMinimum()))
+        rtp = self.transformToWGS84(QgsPointXY(extent.xMaximum(),extent.yMaximum()))
+        return QgsRectangle(llp,rtp)
+
+    def transformToWGS84(self, pPoint):
+        crsDest = QgsCoordinateReferenceSystem(4326)  # WGS 84
+        xform = QgsCoordinateTransform(self.lyr.crs(), crsDest, QgsProject.instance())
+        return xform.transform(pPoint) # forward transformation: src -> dest
+
     def get_layer_metadata(self,lyr=None):
         '''
         builds a metadata dict of the current layer to be stored in summary sheet
         '''
-        def wgs84_extent(extent):
-            llp = transformToWGS84(QgsPointXY(extent.xMinimum(),extent.yMinimum()))
-            rtp = transformToWGS84(QgsPointXY(extent.xMaximum(),extent.yMaximum()))
-            return QgsRectangle(llp,rtp)
-
-        def transformToWGS84(pPoint ):
-            crsDest = QgsCoordinateReferenceSystem(4326)  # WGS 84
-            xform = QgsCoordinateTransform(lyr.crs(), crsDest, QgsProject.instance())
-            return xform.transform(pPoint) # forward transformation: src -> dest
 
         if not lyr:
             lyr = self.lyr
@@ -813,7 +824,7 @@ class GoogleDriveLayer(QObject):
             ['gdrive_id', self.service_sheet.spreadsheetId,],
             ['geometry_type', self.geom_types[lyr.geometryType()],],
             ['features', "'%s" % str(lyr.featureCount()),],
-            ['extent', wgs84_extent(lyr.extent()).asWktCoordinates(),],
+            ['extent', self.wgs84_extent(lyr.extent()).asWktCoordinates(),],
             #['fields', fields,],
             ['abstract', lyr.abstract(),],
             ['srid', lyr.crs().authid(),],
@@ -835,7 +846,8 @@ class GoogleDriveLayer(QObject):
             logger("migrating mapbox style")
             self.service_sheet.set_style_mapbox(self.layer_style_to_json(self.lyr))
         if not self.dirty:
-            return
+            pass
+            #return
         canvas = QgsMapCanvas()
         canvas.resize(QSize(300,300))
         canvas.setCanvasColor(Qt.white)
@@ -857,11 +869,21 @@ class GoogleDriveLayer(QObject):
         result = self.service_drive.upload_image(tmp_path)
         self.service_drive.add_permission(result['id'],'anyone','reader')
         webLink = 'https://drive.google.com/uc?export=view&id='+result['id']
+        canvas.setDestinationCrs(QgsCoordinateReferenceSystem(4326))
+        worldfile = QgsMapSettingsUtils.worldFileContent(settings)
+        lonlat_min = self.transformToWGS84(QgsPointXY(canvas.extent().xMinimum(), canvas.extent().yMinimum()))
+        lonlat_max = self.transformToWGS84(QgsPointXY(canvas.extent().xMaximum(), canvas.extent().yMaximum()))
+        extent = [lonlat_min.x(),lonlat_min.y(),lonlat_max.x(),lonlat_max.y()]
         os.remove(tmp_path)
         #update layer metadata
         summary_id = self.service_sheet.add_sheet('summary', no_grid=True)
-        #self.service_sheet.erase_cells('summary')
-        #self.service_sheet.update_metadata(self.spreadsheet_id,self.get_layer_metadata())
+        print ("keymap",webLink,worldfile,extent)
+        appPropsUpdate = [
+            ["keymap",webLink],
+            ["worldfile",pack(worldfile)],
+            ["keymap_extent", json.dumps(extent)]
+        ]
+        self.service_sheet.update_appProperties(self.spreadsheet_id,appPropsUpdate)
 
         #merge cells to visualize snapshot and aaply image snapshot
         request_body = {
