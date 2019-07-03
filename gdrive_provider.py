@@ -51,6 +51,7 @@ import json
 import io
 import collections
 import re
+import inspect
 from email.utils import parseaddr
 from functools import wraps
 
@@ -67,7 +68,7 @@ SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.goog
 CLIENT_SECRET_FILE = 'GooGIS_client_secret.json'
 APPLICATION_NAME = 'GooGIS plugin'
 
-logger = lambda msg: QgsMessageLog.logMessage(msg, 'Googe Drive Provider', 1)
+logger = lambda msg: QgsMessageLog.logMessage("(%s.%s)  %s" % (inspect.stack()[1][0].f_locals['self'].__class__.__name__, inspect.stack()[1][3], msg), 'Google Drive Provider', 0)
 
 def toggleProgressBar(method):
     wraps(method)
@@ -78,7 +79,10 @@ def toggleProgressBar(method):
         self.dlg.mainDialogProgressBar.setValue(0)
         QApplication.setOverrideCursor(Qt.WaitCursor)
         QApplication.processEvents()
-        method(self,*args, **kwargs)
+        try:
+            method(self,*args, **kwargs)
+        except Exception as E:
+            logger("ERROR: " + str(E))
         QApplication.processEvents()
         QApplication.restoreOverrideCursor()
         self.dlg.mainDialogProgressBar.hide()
@@ -351,6 +355,7 @@ class Google_Drive_Provider(object):
                 if not self.client_id or not self.myDrive:
                     self.updateAccountAction()
                 self.gdrive_layer = GoogleDriveLayer(self, self.authorization, layer.name(), spreadsheet_id=google_id, loading_layer=layer)
+                self.public_db = service_github(self.authorization)
                 layer.editingStarted.connect(self.gdrive_layer.editing_started)
                 layer.updateExtents()
 
@@ -457,6 +462,8 @@ class Google_Drive_Provider(object):
         '''
         self.myDrive.configure_service()
         self.available_sheets = self.myDrive.list_files(orderBy=self.dlg.orderByCombo.itemData(self.dlg.orderByCombo.currentIndex()))
+        #print (json.dumps(self.available_sheets,indent=2))
+        logger("refreshing panel")
         try:
             self.dlg.listWidget.currentItemChanged.disconnect(self.viewMetadata)
         except:
@@ -470,29 +477,30 @@ class Google_Drive_Provider(object):
         anyoneIcon = QIcon(os.path.join(self.plugin_dir,'globe_gray.png'))
         nullIcon = QIcon(os.path.join(self.plugin_dir,'null.png'))
         for sheet_name, sheet_metadata in self.available_sheets.items():
-            newItem = QListWidgetItem(QIcon(),sheet_name,self.dlg.listWidget, QListWidgetItem.UserType)
-            if not sheet_metadata["capabilities"]["canEdit"]:
-                font = newItem.font()
-                font.setItalic(True)
-                newItem.setFont(font)
-            #if sheet in shared_sheets.keys():
-            permissions = self.get_permissions(sheet_metadata)
-            owners_list = [owner["emailAddress"] for owner in sheet_metadata['owners']]
-            if 'anyone' in permissions:
-                if self.client_id in owners_list:
-                    newItem.setIcon(anyoneIconOwner)
+            if sheet_metadata["id"] != self.myDrive.credentials.pubDbId:
+                newItem = QListWidgetItem(QIcon(),sheet_name,self.dlg.listWidget, QListWidgetItem.UserType)
+                if not sheet_metadata["capabilities"]["canEdit"]:
+                    font = newItem.font()
+                    font.setItalic(True)
+                    newItem.setFont(font)
+                #if sheet in shared_sheets.keys():
+                permissions = self.get_permissions(sheet_metadata)
+                owners_list = [owner["emailAddress"] for owner in sheet_metadata['owners']]
+                if 'anyone' in permissions:
+                    if self.client_id in owners_list:
+                        newItem.setIcon(anyoneIconOwner)
+                    else:
+                        newItem.setIcon(anyoneIcon)
+                elif permissions != {}:
+                    if self.client_id in owners_list:
+                        newItem.setIcon(sharedIconOwner)
+                    else:
+                        newItem.setIcon(sharedIcon)
                 else:
-                    newItem.setIcon(anyoneIcon)
-            elif permissions != {}:
-                if self.client_id in owners_list:
-                    newItem.setIcon(sharedIconOwner)
-                else:
-                    newItem.setIcon(sharedIcon)
-            else:
-                newItem.setIcon(nullIcon)
-            #newItem.setIcon(QIcon(os.path.join(self.plugin_dir,'shared.png')))
-            #newItem.setText(sheet)
-            self.dlg.listWidget.addItem(newItem)
+                    newItem.setIcon(nullIcon)
+                #newItem.setIcon(QIcon(os.path.join(self.plugin_dir,'shared.png')))
+                #newItem.setText(sheet)
+                self.dlg.listWidget.addItem(newItem)
         self.dlg.listWidget.currentItemChanged.connect(self.viewMetadata)
 
     def get_permissions(self,metadata):
@@ -570,6 +578,7 @@ class Google_Drive_Provider(object):
 
         self.dlg.metadataTable.clear()
         self.dlg.metadataTable.setRowCount(0)
+        print(self.current_metadata["appProperties"])
         for row in ['geometry_type', 'srid', 'features', 'extent', "abstract"][::-1]:
             if row in self.current_metadata["appProperties"]:
                 self.dlg.metadataTable.insertRow(0)
@@ -631,12 +640,14 @@ class Google_Drive_Provider(object):
             self.dlg.vacuumTablesButton.setDisabled(True)
             self.dlg.deleteTableButton.setDisabled(True)
             self.dlg.unlockTableButton.setDisabled(True)
+        
+        self.dlg.updateReadListButton.hide()
 
     @toggleProgressBar
     def deleteTable(self,checked):
         self.sheet_service = service_spreadsheet(self.authorization, spreadsheetId=self.current_spreadsheet_id)
         sheets = self.sheet_service.get_sheets()
-        open_activity = list(set(sheets.keys()) - set([self.sheet_service.name, self.client_id,  'settings', 'summary', 'changes_log']))
+        open_activity = list(set(sheets.keys()) - set([self.sheet_service.name, self.client_id,  'settings', 'summary', 'changes_log', 'lookup']))
         if open_activity:
             QMessageBox.warning(None, "Can't remove googis table", "The layer is currently locked by: " + ", ".join(open_activity)) 
         else:
@@ -651,7 +662,7 @@ class Google_Drive_Provider(object):
     def vacuumTablesAction(self,checked):
         self.sheet_service = service_spreadsheet(self.authorization, spreadsheetId=self.current_spreadsheet_id)
         sheets = self.sheet_service.get_sheets()
-        open_activity = list(set(sheets.keys()) - set([self.sheet_service.name, self.client_id,  'settings', 'summary', 'changes_log']))
+        open_activity = list(set(sheets.keys()) - set([self.sheet_service.name, self.client_id,  'settings', 'summary', 'changes_log', 'lookup']))
         if not open_activity:
             self.remove_GooGIS_layers(layerId_to_delete=self.current_spreadsheet_id)
             self.sheet_service.remove_deleted_rows()
@@ -665,7 +676,7 @@ class Google_Drive_Provider(object):
     def unlockTableAction(self,checked):
         self.sheet_service = service_spreadsheet(self.authorization, spreadsheetId=self.current_spreadsheet_id)
         sheets = self.sheet_service.get_sheets()
-        open_activity = list(set(sheets.keys()) - set([self.sheet_service.name, self.client_id,  'settings', 'summary', 'changes_log']))
+        open_activity = list(set(sheets.keys()) - set([self.sheet_service.name, self.client_id,  'settings', 'summary', 'changes_log', 'lookup']))
         print (open_activity)
         if open_activity:
             reply = QMessageBox.question(None, "Unlock table", "The layer is currently locked by: {}.\n Do you want to unlock and disconnect users?".format(", ".join(open_activity)), QMessageBox.Yes, QMessageBox.No) 
@@ -748,12 +759,15 @@ class Google_Drive_Provider(object):
                 publicLinkContent = ['public link', "https://enricofer.github.io/GooGIS2CSV/converter.html?spreadsheet_id="+current_spreadsheet_id]
                 self.myDrive.publish_to_web(self.current_metadata)
                 store_metadata = self.current_metadata['appProperties']
+                #for newkey in ["weblink", "keymap_extent", ]:
+                #    store_metadata[newkey] = self.current_metadata[newkey]
+                print (store_metadata)
                 store_metadata.pop("isGOOGISsheet")
-                self.myDrive.ghdb.setKey(self.current_spreadsheet_id, store_metadata)
+                self.public_db.setKey(self.current_spreadsheet_id, store_metadata)
             else:
                 publicLinkContent = [' ', ' ']
                 self.myDrive.unpublish_to_web(self.current_metadata)
-                self.myDrive.ghdb.delKey(self.current_spreadsheet_id)
+                self.public_db.delKey(self.current_spreadsheet_id)
             service_sheet = service_spreadsheet(self.authorization, spreadsheetId=current_spreadsheet_id)
             range = 'summary!A9:B9'
             update_body = {
@@ -763,6 +777,8 @@ class Google_Drive_Provider(object):
             service_sheet.service.spreadsheets().values().update(spreadsheetId=current_spreadsheet_id,range=range, body=update_body, valueInputOption='USER_ENTERED').execute()
 
             self.refresh_available()
+        
+        self.dlg.updateReadListButton.hide()
         self.dlg.mainDialogProgressBar.hide()
 
 
@@ -777,6 +793,8 @@ class Google_Drive_Provider(object):
             self.authorization = google_authorization(self, SCOPES, os.path.join(self.plugin_dir, 'credentials'),
                                                       APPLICATION_NAME, result)
             self.myDrive = service_drive(self.authorization)
+            self.public_db = service_github(self.authorization)
+            
             if not self.myDrive:
                 self.updateAccountAction(self, error=True)
             if result != self.client_id:
@@ -795,21 +813,22 @@ class Google_Drive_Provider(object):
         layer = comboDialog.select(QgsProject.instance().mapLayers(), self.iface.activeLayer())
         self.dup_to_google_drive(layer)
 
-    def importByIdAction(self):
+    def importByIdAction(self, import_id=None):
         '''
         Method to import to user google drive a public sheet giving its fileId
         '''
-        import_id = importFromIdDialog.getNewId()
-        if import_id:
+        if not import_id:
+            import_id = importFromIdDialog.getNewId()
             import_id = import_id.strip()
-            self.myDrive.configure_service()
-            try:
-                response = self.myDrive.service.files().update(fileId=import_id, addParents='root').execute()
-                QApplication.processEvents()
-                self.refresh_available()
-            except Exception as e:
-                logger("exception %s; can't open fileid %s" % (str(e),import_id))
-                pass
+
+        self.myDrive.configure_service()
+        try:
+            response = self.myDrive.service.files().update(fileId=import_id, addParents='root').execute()
+            QApplication.processEvents()
+            self.refresh_available()
+        except Exception as e:
+            logger("exception %s; can't open fileid %s" % (str(e),import_id))
+            pass
 
     def remove_GooGIS_layers(self, layerId_to_delete=None):
         '''

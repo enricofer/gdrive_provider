@@ -24,13 +24,17 @@ from __future__ import print_function
 
 import os
 import webbrowser
+import inspect
+import sys
 
 from qgis.PyQt import QtWidgets, QtGui, QtCore, uic
-from qgis.PyQt.QtWidgets import QListWidgetItem
+from qgis.PyQt.QtWidgets import QListWidgetItem, QTableWidgetItem, QPushButton, QDialogButtonBox
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import Qt
 from qgis.gui import QgsMapLayerComboBox
-from qgis.core import QgsMapLayer, QgsNetworkAccessManager, QgsMapLayerProxyModel
+from qgis.core import QgsMapLayer, QgsNetworkAccessManager, QgsMapLayerProxyModel, QgsMessageLog
+
+logger = lambda msg: QgsMessageLog.logMessage("(%s.%s)  %s" % (inspect.stack()[1][0].f_locals['self'].__class__.__name__, inspect.stack()[1][3], msg), 'Google Drive Provider', 0)
 
 FORM_CLASS1, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'gdrive_provider_dialog_base.ui'))
@@ -264,39 +268,59 @@ class webMapDialog(QtWidgets.QDialog, FORM_CLASS6):
         self.setupUi(self)
         self.parent_obj = parent_obj
         self.availableMaps = parent_obj.available_sheets
-        self.buttonBox.accepted.connect(self.acceptedAction)
+        self.buttonBox.clicked.connect(self.acceptedAction)
         self.buttonBox.rejected.connect(self.rejectedAction)
+        self.public_db_keys = parent_obj.public_db.listKeys()
+        self.buttonBox.addButton(QPushButton('Import layers'), QDialogButtonBox.YesRole)
+        self.buttonBox.addButton(QPushButton('Browse weblinks'), QDialogButtonBox.YesRole)
+
+        for idx,public_layers in enumerate(self.public_db_keys):
+            if "layer_name" in public_layers:
+                listItem = QListWidgetItem(public_layers["layer_name"])
+                listItem.setData(Qt.UserRole,idx)
+                self.publicWebMapsList.addItem(listItem)
+
+        self.publicWebMapsList.itemClicked.connect(self.viewMetadata)
+        logger("browse public layers")
+
+        '''
         for map_name, map_metadata in self.availableMaps.items():
             permissions = self.get_permissions(map_metadata)
             if "anyone" in permissions:
                 publicMapItem = QListWidgetItem(QIcon(os.path.join(os.path.dirname(__file__),'globe.png')),map_name,self.publicWebMapsList, QListWidgetItem.UserType)
                 self.publicWebMapsList.addItem(publicMapItem)
-
-    def get_permissions(self, metadata):
         '''
-        returns a simplified list of permissions from the downloaded metadata
-        :param metadata: the downloaded file metadata
-        '''
-        permissions = {}
-        if 'permissions' in metadata:
-            for permission in metadata['permissions']:
-                if permission['type'] == 'anyone':
-                    permissions['anyone'] = permission['role']
-        return permissions
 
-    def acceptedAction(self):
+    def viewMetadata(self,currentItem):
+        metadataSet = self.public_db_keys[currentItem.data(Qt.UserRole)]
+        print(metadataSet)
+        self.metadataTable.clear()
+        self.metadataTable.setRowCount(0)
+        for row in ['id', 'name', 'geometry_type', 'srid', 'features', 'extent', 'keymap', 'keymap_extent', "abstract"][::-1]:
+            if row in metadataSet:
+                self.metadataTable.insertRow(0)
+                self.metadataTable.setItem(0,0,QTableWidgetItem(row))
+                self.metadataTable.setItem(0,1,QTableWidgetItem(metadataSet[row]))
+        self.metadataTable.resizeColumnsToContents()
+        self.metadataTable.horizontalHeader().setStretchLastSection(True)
+
+    def acceptedAction(self,button):
         if self.publicWebMapsList.selectedItems():
-            selectedIds = []
-            for map_item in self.publicWebMapsList.selectedItems():
-                print (map_item.text(),self.availableMaps[map_item.text()]['id'])
-                selectedIds.append(self.availableMaps[map_item.text()]['id'])
-                #self.parent_obj.myDrive.publish_to_web(self.availableMaps[map_item.text()])
-            url = "https://enricofer.github.io/GooGIS2CSV/converter.html?spreadsheet_id="
-            for map_id in selectedIds:
-                url += map_id+','
-            url = url[:-1]
-            webbrowser.open(url, new=2, autoraise=True)
-            self.result = url
+            if button.text() == 'Import layers':
+                for map_item in self.publicWebMapsList.selectedItems():
+                    self.parent_obj.importByIdAction(import_id=self.public_db_keys[map_item.data(Qt.UserRole)]['id'])
+                    logger("public layer %s imported" % self.public_db_keys[map_item.data(Qt.UserRole)]['layer_name'])
+            elif button.text() == 'Browse weblinks':
+                selectedIds = []
+                for map_item in self.publicWebMapsList.selectedItems():
+                    selectedIds.append(self.public_db_keys[map_item.data(Qt.UserRole)]['id'])
+                    #self.parent_obj.myDrive.publish_to_web(self.availableMaps[map_item.text()])
+                url = "https://enricofer.github.io/GooGIS2CSV/converter.html?spreadsheet_id="
+                for map_id in selectedIds:
+                    url += map_id+','
+                url = url[:-1]
+                webbrowser.open(url, new=2, autoraise=True)
+                self.result = url
             self.close()
             self.acceptedFlag = True
         else:

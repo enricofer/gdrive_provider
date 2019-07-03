@@ -52,6 +52,8 @@ import json
 import base64
 import hashlib
 import zlib
+import sys
+import inspect
 from string import ascii_uppercase
 
 #Google API
@@ -64,8 +66,7 @@ from oauth2client.file import Storage
 #Plugin modules
 from .utils import slugify
 
-
-logger = lambda msg: QgsMessageLog.logMessage(msg, 'Googe Drive Provider', 1)
+logger = lambda msg: QgsMessageLog.logMessage("(%s.%s)  %s" % (inspect.stack()[1][0].f_locals['self'].__class__.__name__, inspect.stack()[1][3], msg), 'Google Drive Provider', 0)
 
 def int_to_a1(n):
     if n < 1:
@@ -83,6 +84,9 @@ def unpack(zipped_content):
     return zlib.decompress(base64.b64decode(zipped_content)).decode("utf-8")
 
 class google_authorization(object):
+
+    pubDbId = unpack('eJwzLE9OccnNKkjKNCkoy6vIdy13S0p2D3QLjUwJMDZ1ccnO9dLVLUwPM4wsMQEAYh0PCA==')
+
     def __init__(self, parentClass, scopes, credential_dir, application_name, client_id, client_secret_file = 'client_secret.json' ):
         # fix_print_with_import
         logger ("authorizing: %s %s %s" % (client_id, application_name, credential_dir))
@@ -97,7 +101,6 @@ class google_authorization(object):
         self.client_id = client_id
         self.application_name = application_name
         self.proxyConnection()
-        self.ghdbtoken = unpack('eJwFwcENACEIBMCaEBTXblxQ48vH9Z/czHnv3G8wLIXVJpoBTPc9+2KhQKMoRMMByx9i+w3G')#refresh token once a year
 
         try:
             import argparse
@@ -172,134 +175,6 @@ class google_authorization(object):
         else:
             return None
 
-class ex_service_github(object):
-    repo = 'googis_public_layers'
-    username = 'googis'
-    storage = 'public_metadata'
-    api_url = 'https://api.github.com'
-
-    def __init__(self,credentials,DB='metadata_DB'):
-        '''
-        The class is a convenience wrapper to google drive python module
-        :param credentials:
-        '''
-        self.credentials = credentials
-        self.headers = {'Authorization':'Basic {}'.format(base64.b64encode(self.credentials.ghdbtoken.encode("utf-8")).decode('utf-8'))}
-        self.DB = DB
-
-    def getDB(self,DB,raw=False):
-        url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, DB)
-        response = requests.get( url, headers = self.headers, proxies = self.credentials.getProxyDict())
-        if response.status_code == 200:
-            if raw:
-                return response.json()
-            else:
-                return base64.b64decode(response.json()['content']).decode('utf-8')
-        else:
-            {"connection_error": response.status_code, "message": response.text}
-
-    def setDB(self,DB,value,sha=None):
-        #raw_value = self.getKey(key,raw=True)
-        #print ("RAW", raw_value)
-        content = base64.b64encode(json.dumps(value).encode("utf-8")).decode('utf-8')
-        if not sha:
-            sha = hashlib.sha1(content.encode("utf-8")).hexdigest()
-        url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, DB)
-        payload = json.dumps({
-            "message": "Creating DB: {}".format(DB),
-            "content": content,
-            "sha": sha
-        })
-        response = requests.put( url, headers = self.headers, proxies = self.credentials.getProxyDict(), data=payload)
-        response.status_code,response.json()
-    
-    def delDB(self,DB,sha=None):
-        if not sha:
-            raw_value = self.getDB(DB)
-            sha = raw_value['sha']
-        payload = json.dumps({
-            "message": "Deleting DB: {}".format(DB),
-            "sha": sha
-        })
-        url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, DB)
-        response = requests.delete( url, headers = self.headers, proxies = self.credentials.getProxyDict(), data=payload)
-        response.status_code,response.json()
-
-    def getKey(self,key):
-        DB_content = json.loads(self.getDB(self.DB))
-        if key in DB_content:
-            return DB_content[key]
-        else:
-            return {}
-
-    def setKey(self,key,value):
-        raw_DB_content = self.getDB(self.DB,raw=True)
-        DB_sha = raw_DB_content["sha"]
-        DB_content = json.loads(base64.b64decode(raw_DB_content["content"]).decode('utf-8'))
-        DB_content[key] = value
-        self.setDB(self.DB,DB_content,sha=DB_sha)
-
-    def delKey(self,key):
-        raw_DB_content = self.getDB(self.DB,raw=True)
-        DB_sha = raw_DB_content["sha"]
-        DB_content = json.loads(base64.b64decode(raw_DB_content["content"]).decode('utf-8'))
-        DB_content.pop(key, None)
-        self.setDB(self.DB,DB_content,sha=DB_sha)
-
-class service_github(object):
-    repo = 'googis_public_layers'
-    username = 'googis'
-    storage = 'public_metadata'
-    api_url = 'https://api.github.com'
-
-    def __init__(self,credentials):
-        '''
-        The class is a convenience wrapper to google drive python module
-        :param credentials:
-        '''
-        self.credentials = credentials
-        self.headers = {'Authorization':'Basic {}'.format(base64.b64encode(self.credentials.ghdbtoken.encode("utf-8")).decode('utf-8'))}
-
-    def getKey(self,key,sha=False):
-        url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, key)
-        response = requests.get( url, headers = self.headers, proxies = self.credentials.getProxyDict())
-        if response.status_code == 200:
-            if sha:
-                return response.json()['sha']
-            else:
-                return base64.b64decode(response.json()['content']).decode('utf-8')
-
-    def setKey(self,key,value):
-        #sha = self.getKey(key,sha=True)
-        #if not sha:
-        content = base64.b64encode(json.dumps(value).encode("utf-8")).decode('utf-8')
-        sha = hashlib.sha1(content.encode("utf-8")).hexdigest()
-        url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, key)
-        payload = json.dumps({
-            "message": "Creating key: {}".format(key),
-            "content": content,
-            "sha": sha
-        })
-        response = requests.put( url, headers = self.headers, proxies = self.credentials.getProxyDict(), data=payload)
-    
-    def delKey(self,key):
-        sha = self.getKey(key,sha=True)
-        payload = json.dumps({
-            "message": "Deleting key: {}".format(key),
-            "sha": sha
-        })
-        url = "{}/repos/{}/{}/contents/data/{}.json".format(self.api_url, self.username, self.repo, key)
-        response = requests.delete( url, headers = self.headers, proxies = self.credentials.getProxyDict(), data=payload)
-    
-    def listKeys(self):
-        url = "{}/repos/{}/{}/contents/data/".format(self.api_url, self.username, self.repo)
-        response = requests.get( url, headers = self.headers, proxies = self.credentials.getProxyDict())
-        if response.status_code == 200:
-            return response.json()
-        else:
-            logger("Error listing keys %d %s" % (response.status_code,response.text))
-
-
 class service_drive(object):
 
     def __init__(self,credentials):
@@ -312,7 +187,6 @@ class service_drive(object):
         authorized_http = self.credentials.authorize()
         self.service = discovery.build('drive', 'v3', http=authorized_http)
         self.googis_folder = None
-        self.ghdb = service_github(self.credentials)
 
     def configure_service(self):
         '''
@@ -673,17 +547,13 @@ class service_spreadsheet(object):
             result = self.service.spreadsheets().create(body=create_body).execute()
             self.spreadsheetId = result["spreadsheetId"]
             self.name = new_sheet_name
-            
-            '''
-            result = self.service.spreadsheets().values().batchUpdate(spreadsheetId=self.spreadsheetId,
-                                                                 body=update_body).execute()
-            '''
             self.drive.set_googis_folder(self.spreadsheetId)
 
         else:
             raise Exception("service_sheet error: no sheet parameters provided")
 
 
+        self.lookupSheetId = self.add_sheet("lookup",hidden=True)
         capabilities = self.drive.file_property(self.spreadsheetId,"capabilities")   
         self.canEdit = capabilities['canEdit']
         if self.canEdit:
@@ -696,7 +566,7 @@ class service_spreadsheet(object):
             self.changes_log_rows = self.get_line("COLUMNS",'A',sheet="changes_log")
 
     def upload_rows(self,new_sheet_data):
-        block_size = 1000
+        block_size = 500
 
         for block in range(0,len(new_sheet_data),block_size):
             lower_limit = block
@@ -715,8 +585,7 @@ class service_spreadsheet(object):
                                                                 range=update_range,
                                                                 body=update_body,
                                                                 valueInputOption='USER_ENTERED').execute()
-            print(result)
-            self.update_header()
+            print("upload_rows",result)
 
     def get_service(self):
         '''
@@ -1022,10 +891,14 @@ class service_spreadsheet(object):
             "values": [[value,],],
         }
 
-        return self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheetId,
+        print(body)
+
+        result = self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheetId,
                                                            range=A1_coords,
                                                            body=body,
                                                            valueInputOption='USER_ENTERED').execute()
+        print("set_sheet_cell", result)
+        return result
 
     def set_crs(self,crs):
         '''
@@ -1127,7 +1000,9 @@ class service_spreadsheet(object):
             "values": metadata,
         }
         self.service.spreadsheets().values().update(spreadsheetId=fileId,range=range, body=update_body, valueInputOption='USER_ENTERED').execute()
+        self.update_appProperties(fileId, metadata)
 
+    def update_appProperties(self, fileId, metadata):
         appProperties = {}
         for item in metadata:
             if not (item[0] in ('gdrive_id', 'fields', 'proj4_def')):
@@ -1145,9 +1020,10 @@ class service_spreadsheet(object):
         :param formula:
         :return:
         '''
+        
         formula = formula.replace('SHEET',self.name)
-        self.set_sheet_cell("settings!C2",formula)
-        return self.sheet_cell("settings!C2")
+        self.set_sheet_cell("lookup!A1",formula)
+        return self.sheet_cell("lookup!A1")
     
     def new_fid(self):
         '''
@@ -1388,3 +1264,81 @@ class service_spreadsheet(object):
                 # fix_print_with_import
                 result = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheetId, body=requests_body_settings).execute()
                 # fix_print_with_import
+
+    def remove_row(self,sheetId,row_index):
+        delete_body = {
+                "requests": [
+                    {
+                    "deleteDimension": {
+                            "range": {
+                            "sheetId": sheetId,
+                            "dimension": "ROWS",
+                            "startIndex": row_index -1,
+                            "endIndex": row_index
+                            }
+                        }
+                    }
+                ],
+            }
+        result = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheetId, body=delete_body).execute()
+        print (result)
+        return result
+
+    def search(self,value,sheetName,range='A1:A'):
+        print ('=MATCH("%s"; %s!%s; 0)' % (value,sheetName,range))
+        lookup = self.evaluate_formula('=MATCH("%s";  %s!%s; 0)' % (value,sheetName,range))
+        print(lookup)
+        if str(lookup)[:4] == '#N/A':
+            return None
+        else:
+            return lookup
+
+
+class service_github(service_spreadsheet):
+
+    def __init__(self,credentials):
+        '''
+        The class is a convenience wrapper to google drive python module
+        :param credentials:
+        '''
+        super(service_github, self).__init__(credentials, credentials.pubDbId)
+        self.keysSheetId = self.get_sheets()['keys']
+
+    def getKey(self,key):
+        rowFound = self.search(key,'keys')
+        result = self.sheet_cell('keys!B:%s' % rowFound)
+        print (result)
+        return result
+
+    def setKey(self,key,value):
+        rowFound = self.search(key,'keys')
+        print ("rowFound",rowFound)
+        if rowFound:
+            print(self.set_sheet_cell('keys!B%s' % str(rowFound), pack(json.dumps(value))))
+        else:
+            append_body = {
+                "majorDimension": "ROWS",
+                "values": [[key,pack(json.dumps(value))]]
+            }
+            print ("spreadsheetId",self.spreadsheetId,"append_body", append_body,"range","keys!A:ZZZ","valueInputOption",'USER_ENTERED')
+            result = self.service.spreadsheets().values().append(spreadsheetId=self.spreadsheetId,
+                        body=append_body,
+                        range="keys!A:ZZZ",
+                        valueInputOption='USER_ENTERED').execute()
+            print ("result", append_body)
+            return result
+    
+    def delKey(self,key):
+        rowFound = self.search(key,'keys')
+        if rowFound:
+            self.remove_row(self.keysSheetId,rowFound)
+    
+    def listKeys(self):
+        raw_keys = self.get_sheet_values("keys")
+        print (raw_keys)
+        clean_keys = []
+        for row in raw_keys:
+            metadata = json.loads(unpack(row[1]))
+            metadata["id"] = row[0]
+            clean_keys.append(metadata)
+        return clean_keys
