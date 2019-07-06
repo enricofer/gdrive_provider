@@ -53,7 +53,7 @@ from tempfile import NamedTemporaryFile
 from qgis.PyQt import  QtGui
 from qgis.PyQt.QtXml import QDomDocument
 from qgis.PyQt.QtWidgets import QProgressBar, QAction, QWidget, QApplication
-from qgis.PyQt.QtGui import QIcon, QPixmap
+from qgis.PyQt.QtGui import QIcon, QPixmap, QImage, QColor
 from qgis.PyQt.QtCore import QObject, pyqtSignal, QThread, QVariant, QSize, Qt
 
 from qgis.core import (QgsVectorLayer, QgsFeature, QgsGeometry, QgsExpression, QgsField, QgsMapLayer, QgsMapRendererParallelJob,
@@ -203,6 +203,9 @@ class GoogleDriveLayer(QObject):
         
         self.lyr.setAbstract(self.service_sheet.abstract())
         self.lyr.gdrive_control = self
+
+        #self.update_summary_sheet(force=True)
+
         bar.stop("Layer %s succesfully loaded" % layer_name)
 
     def makeConnections(self,lyr):
@@ -832,7 +835,7 @@ class GoogleDriveLayer(QObject):
         ]
         return metadata
 
-    def update_summary_sheet(self,lyr=None):
+    def update_summary_sheet(self,lyr=None, force=None):
         '''
         Creates a summary sheet with thumbnail, layer metadata and online view link
         '''
@@ -845,7 +848,7 @@ class GoogleDriveLayer(QObject):
         if not mapbox_style:
             logger("migrating mapbox style")
             self.service_sheet.set_style_mapbox(self.layer_style_to_json(self.lyr))
-        if not self.dirty:
+        if not force and not self.dirty:
             pass
             #return
         canvas = QgsMapCanvas()
@@ -861,6 +864,20 @@ class GoogleDriveLayer(QObject):
         job.start()
         job.waitForFinished()
         image = job.renderedImage()
+        '''
+        transparent_image = QImage(image.width(), image.height(), QImage.Format_ARGB32)
+        transparent_image.fill(QColor(0, 0, 0, 255))
+        logger("pre_transparent")
+
+        for px in range(0, image.width()):
+            for py in range(0, image.height()):
+                pcol = image.pixelColor(px,py)
+                if pcol != QColor(255,255,255):
+                    transparent_image.setPixelColor(px,py,pcol)
+
+        logger("post_transparent")
+        transparent_image.save(tmp_path,"PNG")
+        '''
         tmp_path = os.path.join(self.parent.plugin_dir,self.service_sheet.name+".png")
         image.save(tmp_path,"PNG")
         image_istances = self.service_drive.list_files(mimeTypeFilter='image/png',filename=self.service_sheet.name+".png")
@@ -869,6 +886,7 @@ class GoogleDriveLayer(QObject):
         result = self.service_drive.upload_image(tmp_path)
         self.service_drive.add_permission(result['id'],'anyone','reader')
         webLink = 'https://drive.google.com/uc?export=view&id='+result['id']
+        logger("webLink:" + webLink)
         canvas.setDestinationCrs(QgsCoordinateReferenceSystem(4326))
         worldfile = QgsMapSettingsUtils.worldFileContent(settings)
         lonlat_min = self.transformToWGS84(QgsPointXY(canvas.extent().xMinimum(), canvas.extent().yMinimum()))
@@ -883,8 +901,8 @@ class GoogleDriveLayer(QObject):
             ["worldfile",pack(worldfile)],
             ["keymap_extent", json.dumps(extent)]
         ]
-        self.service_sheet.update_appProperties(self.spreadsheet_id,appPropsUpdate)
-
+        res = self.service_sheet.update_appProperties(self.spreadsheet_id,appPropsUpdate)
+        print ("appPropsUpdate", appPropsUpdate, res)
         #merge cells to visualize snapshot and aaply image snapshot
         request_body = {
             'requests': [{
@@ -911,12 +929,12 @@ class GoogleDriveLayer(QObject):
             else:
                 public = False
         if public:
-            range = 'summary!A9:B9'
+            update_range = 'summary!A9:B9'
             update_body = {
-                "range": range,
+                "range": update_range,
                 "values": [['public link', "https://enricofer.github.io/GooGIS2CSV/converter.html?spreadsheet_id="+self.spreadsheet_id]]
             }
-            self.service_sheet.service.spreadsheets().values().update(spreadsheetId=self.spreadsheet_id,range=range, body=update_body, valueInputOption='USER_ENTERED').execute()
+            self.service_sheet.service.spreadsheets().values().update(spreadsheetId=self.spreadsheet_id,range=update_range, body=update_body, valueInputOption='USER_ENTERED').execute()
 
         #hide worksheets except summary
         sheets = self.service_sheet.get_sheets()

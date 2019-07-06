@@ -1007,6 +1007,8 @@ class service_spreadsheet(object):
         for item in metadata:
             if not (item[0] in ('gdrive_id', 'fields', 'proj4_def')):
                 appProperties[item[0]] =  item[1][:116] #pack(item[1])
+                if len(item[1])>116:
+                    logger("appProperty %s exceeds 116 bytes: %d bytes" % (item[0],len(item[1])) )
         update_body = {
           "appProperties": appProperties
         }
