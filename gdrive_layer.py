@@ -70,6 +70,8 @@ from .services import pack, unpack, google_authorization, service_drive, service
 
 from mapboxgl.mapboxgl import toMapboxgl
 
+from .extlibs.bridgestyle.qgis import layerStyleAsMapbox
+
 from .utils import slugify
 
 
@@ -774,9 +776,13 @@ class GoogleDriveLayer(QObject):
         qgis_layer.readSymbology(XMLStyleNode, error, rw_context)
 
     def layer_style_to_json(self, qgis_layer):
-        mapbox_style = toMapboxgl([qgis_layer])
+
+        old_mapbox_style = toMapboxgl([qgis_layer])
+        mapbox_style,icons,warnings = layerStyleAsMapbox(qgis_layer)
+        print (json.dumps(old_mapbox_style), mapbox_style,type(mapbox_style),icons,warnings)
         # fix_print_with_import
-        return json.dumps(mapbox_style)
+        #return json.dumps(mapbox_style)
+        return mapbox_style
 
     def get_gdrive_id(self):
         '''
