@@ -474,6 +474,8 @@ class service_drive(object):
         if media:
             res = self.service.files().create(body=body, media_body=media).execute()
             # fix_print_with_import
+            webContentLink_info = self.service.files().get(fileId=res["id"], fields="webContentLink").execute()
+            res["webContentLink"] = webContentLink_info["webContentLink"]
             return res
         else:
             return None
@@ -1340,7 +1342,8 @@ class service_github(service_spreadsheet):
         print (raw_keys)
         clean_keys = []
         for row in raw_keys:
-            metadata = json.loads(unpack(row[1]))
-            metadata["id"] = row[0]
-            clean_keys.append(metadata)
+            if row[0] != "key":
+                metadata = json.loads(unpack(row[1]))
+                metadata["id"] = row[0]
+                clean_keys.append(metadata)
         return clean_keys

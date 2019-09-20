@@ -53,7 +53,7 @@ from tempfile import NamedTemporaryFile
 from qgis.PyQt import  QtGui
 from qgis.PyQt.QtXml import QDomDocument
 from qgis.PyQt.QtWidgets import QProgressBar, QAction, QWidget, QApplication
-from qgis.PyQt.QtGui import QIcon, QPixmap, QImage, QColor
+from qgis.PyQt.QtGui import QIcon, QPixmap, QImage, QColor, QPainter, QRegion, QBrush, QBitmap
 from qgis.PyQt.QtCore import QObject, pyqtSignal, QThread, QVariant, QSize, Qt
 
 from qgis.core import (QgsVectorLayer, QgsFeature, QgsGeometry, QgsExpression, QgsField, QgsMapLayer, QgsMapRendererParallelJob,
@@ -204,7 +204,7 @@ class GoogleDriveLayer(QObject):
         self.lyr.setAbstract(self.service_sheet.abstract())
         self.lyr.gdrive_control = self
 
-        #self.update_summary_sheet(force=True)
+        self.update_summary_sheet(force=True)
 
         bar.stop("Layer %s succesfully loaded" % layer_name)
 
@@ -852,7 +852,7 @@ class GoogleDriveLayer(QObject):
             pass
             #return
         canvas = QgsMapCanvas()
-        canvas.resize(QSize(300,300))
+        canvas.resize(QSize(600,600))
         canvas.setCanvasColor(Qt.white)
         canvas.setExtent(lyr.extent())
         canvas.setLayers([lyr])
@@ -864,28 +864,24 @@ class GoogleDriveLayer(QObject):
         job.start()
         job.waitForFinished()
         image = job.renderedImage()
-        '''
+
         transparent_image = QImage(image.width(), image.height(), QImage.Format_ARGB32)
-        transparent_image.fill(QColor(0, 0, 0, 255))
-        logger("pre_transparent")
+        transparent_image.fill(Qt.transparent)
+        p = QPainter(transparent_image)
+        mask = image.createMaskFromColor(QColor(255, 255, 255).rgb(), Qt.MaskInColor)
+        p.setClipRegion(QRegion(QBitmap(QPixmap.fromImage(mask))))
+        p.drawPixmap(0, 0, QPixmap.fromImage(image))
+        p.end()
 
-        for px in range(0, image.width()):
-            for py in range(0, image.height()):
-                pcol = image.pixelColor(px,py)
-                if pcol != QColor(255,255,255):
-                    transparent_image.setPixelColor(px,py,pcol)
-
-        logger("post_transparent")
-        transparent_image.save(tmp_path,"PNG")
-        '''
         tmp_path = os.path.join(self.parent.plugin_dir,self.service_sheet.name+".png")
-        image.save(tmp_path,"PNG")
+        transparent_image.save(tmp_path,"PNG")
         image_istances = self.service_drive.list_files(mimeTypeFilter='image/png',filename=self.service_sheet.name+".png")
         for imagename, image_props in image_istances.items():
             self.service_drive.delete_file(image_props['id'])
         result = self.service_drive.upload_image(tmp_path)
         self.service_drive.add_permission(result['id'],'anyone','reader')
-        webLink = 'https://drive.google.com/uc?export=view&id='+result['id']
+        print("result",result)
+        webLink = result['webContentLink'] #'https://drive.google.com/uc?export=view&id='+result['id']
         logger("webLink:" + webLink)
         canvas.setDestinationCrs(QgsCoordinateReferenceSystem(4326))
         worldfile = QgsMapSettingsUtils.worldFileContent(settings)
