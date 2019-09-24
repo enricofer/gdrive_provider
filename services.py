@@ -1340,7 +1340,8 @@ class service_github(service_spreadsheet):
         print (raw_keys)
         clean_keys = []
         for row in raw_keys:
-            metadata = json.loads(unpack(row[1]))
-            metadata["id"] = row[0]
-            clean_keys.append(metadata)
+            if row[0] != "key":
+                metadata = json.loads(unpack(row[1]))
+                metadata["id"] = row[0]
+                clean_keys.append(metadata)
         return clean_keys
