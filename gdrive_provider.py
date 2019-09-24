@@ -39,7 +39,7 @@ from qgis.PyQt.QtCore import QSettings, QTranslator, qVersion, QCoreApplication,
 from qgis.PyQt.QtWidgets import QAction, QDialog, QProgressBar, QDialogButtonBox, QListWidgetItem, QApplication, QTableWidgetItem, QMessageBox
 from qgis.PyQt.QtGui import QIcon, QPixmap, QCursor
 # Initialize Qt resources from file resources.py
-from . import resources_rc
+import resources_rc
 # Import the code for the dialog
 from .gdrive_provider_dialog import GoogleDriveProviderDialog, accountDialog, comboDialog, importFromIdDialog, internalBrowser, webMapDialog
 from .gdrive_layer import progressBar, GoogleDriveLayer
@@ -756,7 +756,7 @@ class Google_Drive_Provider(object):
         if rw_commander["reader"]['update_publish']: # or rw_commander["writer"]['update_publish']:
             publish_state = rw_commander["reader"]["check_anyone_widget"].isChecked() # or rw_commander["writer"]["check_anyone_widget"].isChecked()
             if publish_state:
-                publicLinkContent = ['public link', "https://enricofer.github.io/GooGIS2CSV/converter.html?spreadsheet_id="+current_spreadsheet_id]
+                publicLinkContent = ['public link', "https://enricofer.github.io/gdrive_provider/weblink/converter.html?spreadsheet_id="+current_spreadsheet_id]
                 self.myDrive.publish_to_web(self.current_metadata)
                 store_metadata = self.current_metadata['appProperties']
                 #for newkey in ["weblink", "keymap_extent", ]:
