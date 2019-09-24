@@ -88,7 +88,6 @@ class google_authorization(object):
     pubDbId = unpack('eJwzLE9OccnNKkjKNCkoy6vIdy13S0p2D3QLjUwJMDZ1ccnO9dLVLUwPM4wsMQEAYh0PCA==')
 
     def __init__(self, parentClass, scopes, credential_dir, application_name, client_id, client_secret_file = 'client_secret.json' ):
-        # fix_print_with_import
         logger ("authorizing: %s %s %s" % (client_id, application_name, credential_dir))
         self.parent = parentClass
         self.credential_dir = os.path.abspath(credential_dir)
@@ -110,9 +109,6 @@ class google_authorization(object):
                 self.flags = argparse.ArgumentParser(parents=[tools.argparser]).parse_args()
             except:
                 self.flags = argparse.Namespace(auth_host_name='localhost', auth_host_port=[8080, 8090], logging_level='ERROR', noauth_local_webserver=False)
-            #self.flags = argparse.ArgumentParser(prog='', usage=None, description=None, version=None, add_help=False).parse_args()
-            # fix_print_with_import
-            #print("self.flags",self.flags)
         except ImportError:
             self.flags = None
     
@@ -151,14 +147,12 @@ class google_authorization(object):
         credentials = self.store.get()
         if not credentials or credentials.invalid:
             flow = client.flow_from_clientsecrets(self.secret_path, self.scopes, message='Invalid secret or credentials')
-            # fix_print_with_import
             flow.user_agent = self.application_name
             try:
                 if self.flags:
                     credentials = tools.run_flow(flow, self.store, self.flags)
                 else: # Needed only for compatibility with Python 2.6
                     credentials = tools.run(flow, self.store)
-                # fix_print_with_import
                 logger( 'Storing credentials to ' + self.credential_path)
             except:
                 return None
@@ -238,7 +232,6 @@ class service_drive(object):
         try:
             self.list_files()
         except:
-            # fix_print_with_import
             logger("renew authorization")
             self.configure_service()
 
@@ -286,14 +279,12 @@ class service_drive(object):
         logger( "Removed permission: " + json.dumps(self.service.permissions().delete(fileId=spreadsheet_id, permissionId=permission_id).execute()))
 
     def publish_to_web(self, metadata):
-        # fix_print_with_import
         spreadsheet_id = metadata["id"]
         self.add_permission(spreadsheet_id, "anyoneWithLink","reader")
         self.service.revisions().update(fileId=spreadsheet_id, revisionId='head',
                                         body={'published': True, 'publishAuto': True, "publishedOutsideDomain": True,}).execute()
 
     def unpublish_to_web(self,metadata):
-        # fix_print_with_import
         spreadsheet_id = metadata["id"]
         self.service.permissions().delete(fileId=spreadsheet_id, permissionId='anyoneWithLink')
         self.service.revisions().update(fileId=spreadsheet_id, revisionId='head',
@@ -378,7 +369,6 @@ class service_drive(object):
           "addParents": googis_folder
         }
         result = self.service.files().update(fileId=fileId, addParents=googis_folder).execute()
-        # fix_print_with_import
         return result
 
 
@@ -465,7 +455,6 @@ class service_drive(object):
 
     def upload_image(self, filePath):
         googis_folder = self.get_googis_folder_id()
-        print("GOOGIS folder", googis_folder)
         body = {
             'name': os.path.basename(filePath),
             'parents':[googis_folder]
@@ -473,7 +462,6 @@ class service_drive(object):
         media = MediaFileUpload(filePath, mimetype='image/png', resumable=None)
         if media:
             res = self.service.files().create(body=body, media_body=media).execute()
-            # fix_print_with_import
             webContentLink_info = self.service.files().get(fileId=res["id"], fields="webContentLink").execute()
             res["webContentLink"] = webContentLink_info["webContentLink"]
             return res
@@ -587,7 +575,6 @@ class service_spreadsheet(object):
                                                                 range=update_range,
                                                                 body=update_body,
                                                                 valueInputOption='USER_ENTERED').execute()
-            print("upload_rows",result)
 
     def get_service(self):
         '''
@@ -614,11 +601,9 @@ class service_spreadsheet(object):
         current_sheets = self.get_sheets()
         if not self.credentials.client_id in current_sheets:
             subscription = self.add_sheet(self.credentials.client_id, hidden=False)
-            # fix_print_with_import
             logger("subscription %d" % subscription)
             return subscription
         else:
-            # fix_print_with_import
             logger("error multiple session on the same sheet!")
             self.erase_cells(self.credentials.client_id)
             return current_sheets[self.credentials.client_id]
@@ -893,13 +878,10 @@ class service_spreadsheet(object):
             "values": [[value,],],
         }
 
-        print(body)
-
         result = self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheetId,
                                                            range=A1_coords,
                                                            body=body,
                                                            valueInputOption='USER_ENTERED').execute()
-        print("set_sheet_cell", result)
         return result
 
     def set_crs(self,crs):
@@ -1187,7 +1169,6 @@ class service_spreadsheet(object):
                 }
             }
             result = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheetId, body=update_body).execute()
-            # fix_print_with_import
             return result
         else:
             logger ("Can't find sheet" + sheetName)
@@ -1217,10 +1198,8 @@ class service_spreadsheet(object):
                         }
                     )
                     deleted += 1
-            # fix_print_with_import
             if deleted > 0:
                 result = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheetId, body=requests_body).execute()
-                # fix_print_with_import
 
     def remove_deleted_columns(self):
         ranges = [self.name + '!1:1']
@@ -1234,7 +1213,6 @@ class service_spreadsheet(object):
         sheets = self.get_sheets()
         deleted = 0
         if 'values' in result['valueRanges'][0]:
-            # fix_print_with_import
             for count, column in enumerate (result['valueRanges'][0]['values'][0]):
                 if column[:8] == 'DELETED_':
                     requests_body_main['requests'].append(
@@ -1262,12 +1240,9 @@ class service_spreadsheet(object):
                         }
                     )
                     deleted += 1
-            # fix_print_with_import
             if deleted > 0:
                 result = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheetId, body=requests_body_main).execute()
-                # fix_print_with_import
                 result = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheetId, body=requests_body_settings).execute()
-                # fix_print_with_import
 
     def remove_row(self,sheetId,row_index):
         delete_body = {
@@ -1285,51 +1260,45 @@ class service_spreadsheet(object):
                 ],
             }
         result = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheetId, body=delete_body).execute()
-        print (result)
         return result
 
     def search(self,value,sheetName,range='A1:A'):
-        print ('=MATCH("%s"; %s!%s; 0)' % (value,sheetName,range))
         lookup = self.evaluate_formula('=MATCH("%s";  %s!%s; 0)' % (value,sheetName,range))
-        print(lookup)
         if str(lookup)[:4] == '#N/A':
             return None
         else:
             return lookup
 
 
-class service_github(service_spreadsheet):
+class service_public_layers(service_spreadsheet):
 
     def __init__(self,credentials):
         '''
         The class is a convenience wrapper to google drive python module
         :param credentials:
         '''
-        super(service_github, self).__init__(credentials, credentials.pubDbId)
+        super(service_public_layers, self).__init__(credentials, credentials.pubDbId)
         self.keysSheetId = self.get_sheets()['keys']
 
     def getKey(self,key):
         rowFound = self.search(key,'keys')
         result = self.sheet_cell('keys!B:%s' % rowFound)
-        print (result)
         return result
 
     def setKey(self,key,value):
         rowFound = self.search(key,'keys')
-        print ("rowFound",rowFound)
         if rowFound:
-            print(self.set_sheet_cell('keys!B%s' % str(rowFound), pack(json.dumps(value))))
+            self.set_sheet_cell('keys!B%s' % str(rowFound), pack(json.dumps(value)))
         else:
             append_body = {
                 "majorDimension": "ROWS",
                 "values": [[key,pack(json.dumps(value))]]
             }
-            print ("spreadsheetId",self.spreadsheetId,"append_body", append_body,"range","keys!A:ZZZ","valueInputOption",'USER_ENTERED')
+            #print ("spreadsheetId",self.spreadsheetId,"append_body", append_body,"range","keys!A:ZZZ","valueInputOption",'USER_ENTERED')
             result = self.service.spreadsheets().values().append(spreadsheetId=self.spreadsheetId,
                         body=append_body,
                         range="keys!A:ZZZ",
                         valueInputOption='USER_ENTERED').execute()
-            print ("result", append_body)
             return result
     
     def delKey(self,key):
@@ -1339,7 +1308,6 @@ class service_github(service_spreadsheet):
     
     def listKeys(self):
         raw_keys = self.get_sheet_values("keys")
-        print (raw_keys)
         clean_keys = []
         for row in raw_keys:
             if row[0] != "key":

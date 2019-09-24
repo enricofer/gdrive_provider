@@ -543,11 +543,6 @@ class GoogleDriveLayer(QObject):
             new_fid = self.service_sheet.new_fid()
             self.lyr.dataProvider().changeAttributeValues({feature.id() : {0: new_fid}})
             feature.setAttribute(0, new_fid+count)
-            '''
-            print "WKB", base64.b64encode(feature.geometry().asWkb())
-            print "WKB", base64.b64encode(zlib.compress(feature.geometry().asWkb()))
-            print "WKT", base64.b64encode(zlib.compress(feature.geometry().asWkt()))
-            '''
             new_row_dict = {}.fromkeys(self.service_sheet.header,'()')
             new_row_dict['WKTGEOMETRY'] = pack(feature.geometry().asWkt())
             new_row_dict['STATUS'] = '()'
@@ -684,7 +679,6 @@ class GoogleDriveLayer(QObject):
                         content = feat[field.name()]
                 row.append(content)
             writer.writerow(row)
-        #print stream.getvalue()
         stream.seek(0)
         #csv.reader(stream, delimiter=',', quotechar='"', lineterminator='\n')
         return stream
@@ -887,7 +881,6 @@ class GoogleDriveLayer(QObject):
             self.service_drive.delete_file(image_props['id'])
         result = self.service_drive.upload_image(tmp_path)
         self.service_drive.add_permission(result['id'],'anyone','reader')
-        print("result",result)
         webLink = result['webContentLink'] #'https://drive.google.com/uc?export=view&id='+result['id']
         logger("webLink:" + webLink)
         canvas.setDestinationCrs(QgsCoordinateReferenceSystem(4326))
@@ -898,14 +891,12 @@ class GoogleDriveLayer(QObject):
         os.remove(tmp_path)
         #update layer metadata
         summary_id = self.service_sheet.add_sheet('summary', no_grid=True)
-        print ("keymap",webLink,worldfile,extent)
         appPropsUpdate = [
             ["keymap",webLink],
             ["worldfile",pack(worldfile)],
             ["keymap_extent", json.dumps(extent)]
         ]
         res = self.service_sheet.update_appProperties(self.spreadsheet_id,appPropsUpdate)
-        print ("appPropsUpdate", appPropsUpdate, res)
         #merge cells to visualize snapshot and aaply image snapshot
         request_body = {
             'requests': [{

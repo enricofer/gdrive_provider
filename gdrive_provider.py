@@ -55,7 +55,7 @@ import inspect
 from email.utils import parseaddr
 from functools import wraps
 
-from .services import google_authorization, service_drive, service_spreadsheet, service_github, pack
+from .services import google_authorization, service_drive, service_spreadsheet, service_public_layers, pack
 
 try:
     from pydevd import *
@@ -73,7 +73,6 @@ logger = lambda msg: QgsMessageLog.logMessage("(%s.%s)  %s" % (inspect.stack()[1
 def toggleProgressBar(method):
     wraps(method)
     def wrapper(self=None, *args, **kwargs):
-        print (method,args)
         self.dlg.mainDialogProgressBar.show()
         self.dlg.mainDialogProgressBar.setRange(0,0)
         self.dlg.mainDialogProgressBar.setValue(0)
@@ -224,21 +223,13 @@ class Google_Drive_Provider(object):
         Create the menu entries and toolbar icons inside the QGIS GUI.
         """
 
-        # fix_print_with_import
-        print("initgui")
         icon_path = os.path.join(self.plugin_dir,'icon.png')
         self.add_action(
             icon_path,
             text=self.tr(u'Google Drive Provider '),
             callback=self.run,
             parent=self.iface.mainWindow())
-        '''
-        self.add_action(
-            os.path.join(self.plugin_dir,'test.png'),
-            text=self.tr(u'Google Drive Provider test '),
-            callback=self.test_suite,
-            parent=self.iface.mainWindow())
-        '''
+
         self.dlg.setWindowIcon(QIcon(os.path.join(self.plugin_dir,'icon.png')))
         self.dlg.anyoneCanWrite.stateChanged.connect(self.anyoneCanWriteAction)
         self.dlg.anyoneCanRead.stateChanged.connect(self.anyoneCanReadAction)
@@ -355,7 +346,7 @@ class Google_Drive_Provider(object):
                 if not self.client_id or not self.myDrive:
                     self.updateAccountAction()
                 self.gdrive_layer = GoogleDriveLayer(self, self.authorization, layer.name(), spreadsheet_id=google_id, loading_layer=layer)
-                self.public_db = service_github(self.authorization)
+                self.public_db = service_public_layers(self.authorization)
                 layer.editingStarted.connect(self.gdrive_layer.editing_started)
                 layer.updateExtents()
 
@@ -378,16 +369,12 @@ class Google_Drive_Provider(object):
         layer_c = QgsVectorLayer(os.path.join(self.plugin_dir,'test','dataset','c0509028_LocSitiContaminati.shp'), "layer_c", 'ogr')
         lv = plugins['layerVersion']
         for layer in  (layer_a, layer_b, layer_c ):
-            # fix_print_with_import
-            print("LAYER", layer.name())
             glayer = GoogleDriveLayer(self, self.authorization, layer.name(), importing_layer=layer, test=True)
             gsheet = glayer.get_service_sheet()
             glayer.lyr.startEditing()
             if not layer: #layer_a:
                 for s in ['1','2','3']:
                     qlv_path = os.path.join(self.plugin_dir,'test','dataset',layer.name()+s+'.qlv')
-                    # fix_print_with_import
-                    print("qlv_path "+s, qlv_path)
                     lv.editingStateLoader.setEditsXMLDefinition(qlv_path, batch=True)
                     if s == '3':
                         glayer.lyr.rollBack()
@@ -395,8 +382,6 @@ class Google_Drive_Provider(object):
                         glayer.lyr.commitChanges()
             else:
                 qlv_path = os.path.join(self.plugin_dir,'test','dataset',layer.name()+'.qlv')
-                # fix_print_with_import
-                print("qlv_path", qlv_path)
                 lv.editingStateLoader.setEditsXMLDefinition(qlv_path, batch=True)
                 glayer.lyr.commitChanges()
 
@@ -462,7 +447,6 @@ class Google_Drive_Provider(object):
         '''
         self.myDrive.configure_service()
         self.available_sheets = self.myDrive.list_files(orderBy=self.dlg.orderByCombo.itemData(self.dlg.orderByCombo.currentIndex()))
-        #print (json.dumps(self.available_sheets,indent=2))
         logger("refreshing panel")
         try:
             self.dlg.listWidget.currentItemChanged.disconnect(self.viewMetadata)
@@ -578,7 +562,6 @@ class Google_Drive_Provider(object):
 
         self.dlg.metadataTable.clear()
         self.dlg.metadataTable.setRowCount(0)
-        print(self.current_metadata["appProperties"])
         for row in ['geometry_type', 'srid', 'features', 'extent', "abstract"][::-1]:
             if row in self.current_metadata["appProperties"]:
                 self.dlg.metadataTable.insertRow(0)
@@ -668,7 +651,6 @@ class Google_Drive_Provider(object):
             self.sheet_service.remove_deleted_rows()
             self.sheet_service.remove_deleted_columns()
         else:
-            # fix_print_with_import
             QMessageBox.warning(None, "Can't vacuum googis table", "The layer is currently locked") 
             logger("CAN'T VACUUM TABLES")
 
@@ -677,7 +659,6 @@ class Google_Drive_Provider(object):
         self.sheet_service = service_spreadsheet(self.authorization, spreadsheetId=self.current_spreadsheet_id)
         sheets = self.sheet_service.get_sheets()
         open_activity = list(set(sheets.keys()) - set([self.sheet_service.name, self.client_id,  'settings', 'summary', 'changes_log', 'lookup']))
-        print (open_activity)
         if open_activity:
             reply = QMessageBox.question(None, "Unlock table", "The layer is currently locked by: {}.\n Do you want to unlock and disconnect users?".format(", ".join(open_activity)), QMessageBox.Yes, QMessageBox.No) 
             if reply == QMessageBox.Yes:
@@ -761,7 +742,6 @@ class Google_Drive_Provider(object):
                 store_metadata = self.current_metadata['appProperties']
                 #for newkey in ["weblink", "keymap_extent", ]:
                 #    store_metadata[newkey] = self.current_metadata[newkey]
-                print (store_metadata)
                 store_metadata.pop("isGOOGISsheet")
                 self.public_db.setKey(self.current_spreadsheet_id, store_metadata)
             else:
@@ -793,7 +773,7 @@ class Google_Drive_Provider(object):
             self.authorization = google_authorization(self, SCOPES, os.path.join(self.plugin_dir, 'credentials'),
                                                       APPLICATION_NAME, result)
             self.myDrive = service_drive(self.authorization)
-            self.public_db = service_github(self.authorization)
+            self.public_db = service_public_layers(self.authorization)
             
             if not self.myDrive:
                 self.updateAccountAction(self, error=True)
@@ -916,7 +896,6 @@ class Google_Drive_Provider(object):
         try:
             pass
         except Exception as e:
-            # fix_print_with_import
             logger("EXCEPTION " + str(e))
             QApplication.restoreOverrideCursor()
             None
@@ -938,5 +917,4 @@ class Google_Drive_Provider(object):
         Method to select public maps for browsing them in external webbrowser
         :return:
         '''
-        # fix_print_with_import
         webMapDialog.get_web_link(self)
