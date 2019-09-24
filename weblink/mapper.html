@@ -1,0 +1,85 @@
+
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Open+Sans" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/openlayers/4.6.5/ol.css" type="text/css">
+<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/extjs/6.2.0/classic/theme-crisp/resources/theme-crisp-all.css"/>
+<style>
+.progress, .alert {
+    margin: 15px;
+    display: none;
+}
+
+.alert {
+    display: none;
+}
+
+#downloading {
+    display: none;
+}
+    
+.layer-switcher {
+    top: 3em;
+    bottom:unset;
+}
+    
+.ol-popup-content {
+    min-width: 300px;
+    max-height: 400px;
+    overflow-x: auto;
+}
+
+.ol-popup-content td {
+    vertical-align:top;
+}
+
+.ol-layerswitcher .panel li label {
+    max-width: unset !important;
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+
+<!-- ol-ext -->
+<link rel="stylesheet" href="ol-ext.css" />
+
+
+</head>
+
+</body>
+</html>
+
+<body>
+
+    <div class="progress">
+        <div class="progress-bar" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" style="width: 0%;"></div>
+    </div>
+    <div id="downloading" class="alert alert-success" role="alert">Downloading</div>
+    <div id="completed" class="alert alert-success" role="alert">Loading completed!</div>
+
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/openlayers/4.6.5/ol.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/extjs/6.2.0/ext-all.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pako/1.0.10/pako.js"></script>
+    <script type="text/javascript" src='https://cdnjs.cloudflare.com/ajax/libs/tabletop.js/1.5.1/tabletop.min.js'></script>
+    <script type="text/javascript" src='https://cdnjs.cloudflare.com/ajax/libs/tabletop.js/1.5.1/tabletop.min.js'></script>
+    <script type="text/javascript" src='https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.5.0/proj4.js'></script>
+    <script type="text/javascript" src="https://cdn.polyfill.io/v2/polyfill.min.js?features=requestAnimationFrame,Element.prototype.classList,URL,Object.assign"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.11/lodash.min.js"></script>
+    <script type="text/javascript" src="ol-ext.js"></script>
+    <script type="text/javascript" src='https://unpkg.com/ol-mapbox-style@3.1.0/dist/olms.js'></script>
+    <script>
+        Ext.Loader.setConfig({
+            enabled: true,
+            paths: {
+                'GeoExt': 'https://rawgit.com/geoext/geoext3/master/src/'
+            }
+        });
+    </script>
+
+    <script src="mapper_ext.js" ></script>
+</body>
+</html>
