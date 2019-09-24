@@ -777,11 +777,12 @@ class GoogleDriveLayer(QObject):
 
     def layer_style_to_json(self, qgis_layer):
 
-        old_mapbox_style = toMapboxgl([qgis_layer])
+        #old_mapbox_style = toMapboxgl([qgis_layer])
         mapbox_style,icons,warnings = layerStyleAsMapbox(qgis_layer)
-        print (json.dumps(old_mapbox_style), mapbox_style,type(mapbox_style),icons,warnings)
-        # fix_print_with_import
-        #return json.dumps(mapbox_style)
+        if warnings:
+            logger("Warning exporting to mapboxgl style: " + json.dumps(warnings))
+        else:
+            logger("mapboxgl style ok")
         return mapbox_style
 
     def get_gdrive_id(self):
@@ -934,7 +935,7 @@ class GoogleDriveLayer(QObject):
             update_range = 'summary!A9:B9'
             update_body = {
                 "range": update_range,
-                "values": [['public link', "https://enricofer.github.io/GooGIS2CSV/converter.html?spreadsheet_id="+self.spreadsheet_id]]
+                "values": [['public link', "https://enricofer.github.io/gdrive_provider/weblink/converter.html?spreadsheet_id="+self.spreadsheet_id]]
             }
             self.service_sheet.service.spreadsheets().values().update(spreadsheetId=self.spreadsheet_id,range=update_range, body=update_body, valueInputOption='USER_ENTERED').execute()
 

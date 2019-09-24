@@ -756,7 +756,7 @@ class Google_Drive_Provider(object):
         if rw_commander["reader"]['update_publish']: # or rw_commander["writer"]['update_publish']:
             publish_state = rw_commander["reader"]["check_anyone_widget"].isChecked() # or rw_commander["writer"]["check_anyone_widget"].isChecked()
             if publish_state:
-                publicLinkContent = ['public link', " https://enricofer.github.io/gdrive_provider/weblink/converter.html?spreadsheet_id="+current_spreadsheet_id]
+                publicLinkContent = ['public link', "https://enricofer.github.io/gdrive_provider/weblink/converter.html?spreadsheet_id="+current_spreadsheet_id]
                 self.myDrive.publish_to_web(self.current_metadata)
                 store_metadata = self.current_metadata['appProperties']
                 #for newkey in ["weblink", "keymap_extent", ]:

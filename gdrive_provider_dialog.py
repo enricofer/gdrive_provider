@@ -315,7 +315,7 @@ class webMapDialog(QtWidgets.QDialog, FORM_CLASS6):
                 for map_item in self.publicWebMapsList.selectedItems():
                     selectedIds.append(self.public_db_keys[map_item.data(Qt.UserRole)]['id'])
                     #self.parent_obj.myDrive.publish_to_web(self.availableMaps[map_item.text()])
-                url = "https://enricofer.github.io/GooGIS2CSV/converter.html?spreadsheet_id="
+                url = "https://enricofer.github.io/gdrive_provider/weblink/converter.html?spreadsheet_id="
                 for map_id in selectedIds:
                     url += map_id+','
                 url = url[:-1]
