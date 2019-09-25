@@ -761,7 +761,6 @@ class Google_Drive_Provider(object):
         self.dlg.updateReadListButton.hide()
         self.dlg.mainDialogProgressBar.hide()
 
-
     def updateAccountAction(self, error=None):
         """
         Method to update current google drive user

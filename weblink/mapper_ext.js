@@ -264,7 +264,7 @@ Ext.application({
                     console.log(record.data.fid);
                     var layer_clicked = public_layers[record.data.fid];
                     console.log(layer_clicked);
-                    var details = []
+                    var details = [{key:"view",value:"?spreadsheet_id="+layer_clicked["gdrive_id"]}]
                     for(var key in layer_clicked){
                         if (!layer_clicked.hasOwnProperty(key)) continue;
                         details.push({key:key,value:layer_clicked[key]})
@@ -289,12 +289,23 @@ Ext.application({
         });
 
         detail_panel = Ext.create('Ext.grid.Panel', {
-            title: 'public_layers',
+            title: 'Details',
             id: 'layer_detail',
             store: Ext.data.StoreManager.lookup('detail_store'),
             columns: [
                 { text: 'key', dataIndex: 'key', flex: 1 },
-                { text: 'value', dataIndex: 'value', flex: 1 },
+                { 
+                    text: 'value', 
+                    dataIndex: 'value', 
+                    flex: 1,
+                    renderer: function(value, metaData, record, row, col, store, gridView){
+                        if (value.toString().substring(0, 1) == '?'){
+                            return '<a class="btnColor" target=”_blank” href="https://enricofer.github.io/gdrive_provider/weblink/converter.html'+value+'">Viev layer</a>'
+                        } else {
+                            return value
+                        }
+                    } 
+                },
             ],
             height: 500,
             width: 300,
@@ -302,6 +313,9 @@ Ext.application({
                 rowclick: function(grd, record) {
                     console.log(record.data.fid);
                 }
+            },
+            viewConfig : {
+                enableTextSelection: true
             }
         });
 

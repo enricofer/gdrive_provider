@@ -1285,11 +1285,11 @@ class service_public_layers(service_spreadsheet):
         result = self.sheet_cell('keys!B:%s' % rowFound)
         return result
 
-    def setKey(self,key,value):
+    def setKey(self,key,value,only_update=False):
         rowFound = self.search(key,'keys')
         if rowFound:
             self.set_sheet_cell('keys!B%s' % str(rowFound), pack(json.dumps(value)))
-        else:
+        elif not only_update:
             append_body = {
                 "majorDimension": "ROWS",
                 "values": [[key,pack(json.dumps(value))]]

@@ -68,7 +68,7 @@ logger = lambda msg: QgsMessageLog.logMessage("(%s.%s)  %s" % (inspect.stack()[1
 
 from .services import pack, unpack, google_authorization, service_drive, service_spreadsheet
 
-from mapboxgl.mapboxgl import toMapboxgl
+#from mapboxgl.mapboxgl import toMapboxgl
 
 from .extlibs.bridgestyle.qgis import layerStyleAsMapbox
 
@@ -109,6 +109,7 @@ class GoogleDriveLayer(QObject):
     invalidEdit = pyqtSignal()
     deferredEdit = pyqtSignal()
     dirty = False
+    restyled = False
     doing_attr_update = False
     geom_types = ("Point", "LineString", "Polygon","Unknown","NoGeometry")
 
@@ -167,7 +168,6 @@ class GoogleDriveLayer(QObject):
             attrIds = [i for i in range (0, self.lyr.fields().count())]
             self.lyr.dataProvider().deleteAttributes(attrIds)
             self.lyr.updateFields()
-            self.update_summary_sheet()
         else:
             self.uri = self.uri = "Multi%s?crs=%s&index=yes" % (self.geom_type, self.crs_def)
             #logger(self.uri)
@@ -178,6 +178,17 @@ class GoogleDriveLayer(QObject):
             self.update_summary_sheet() 
             logger("4")
             self.saveMetadataState(importing_layer)
+
+        '''
+        #check if public layer
+        meta = self.service_drive.getFileMetadata(self.spreadsheet_id)
+        permissions = meta["metadata"]["permissions"]
+        self.is_public_layer = False
+        for permission in permissions:
+            if permission["id"] == "anyoneWithLink":
+                self.is_public_layer = True
+                logger("is public layer")
+        '''
 
         fields_types = self.service_sheet.get_line("ROWS", 1, sheet="settings")
         attributes = []
@@ -205,8 +216,6 @@ class GoogleDriveLayer(QObject):
         
         self.lyr.setAbstract(self.service_sheet.abstract())
         self.lyr.gdrive_control = self
-
-        self.update_summary_sheet(force=True)
 
         bar.stop("Layer %s succesfully loaded" % layer_name)
 
@@ -264,19 +273,19 @@ class GoogleDriveLayer(QObject):
                 self.lyr.addFeature(feature)
         self.lyr.commitChanges()
 
-    def saveMetadataState(self,lyr=None):
+    def saveMetadataState(self,lyr=None,metadata=None):
         logger ("metadata changed")
-        self.service_sheet.update_metadata(self.spreadsheet_id,self.get_layer_metadata(lyr))
+        if not metadata:
+            metadata = self.get_layer_metadata(lyr)
+        self.service_sheet.update_metadata(self.spreadsheet_id, metadata)
 
     def style_changed(self):
         '''
         landing method for rendererChanged signal. It stores xml qgis style definition to the setting sheet
         '''
         logger( "style changed")
-        self.service_sheet.set_style_qgis(self.layer_style_to_xml(self.lyr))
-        self.service_sheet.set_style_sld(self.SLD_to_xml(self.lyr))
-        self.service_sheet.set_style_mapbox(self.layer_style_to_json(self.lyr))
-        self.saveMetadataState()
+        self.dirty = True
+        self.restyled = True
 
     def renew_connection(self):
         '''
@@ -834,6 +843,7 @@ class GoogleDriveLayer(QObject):
             ['srid', lyr.crs().authid(),],
             ['proj4_def', "'%s" % lyr.crs().toProj4(),],
         ]
+
         return metadata
 
     def update_summary_sheet(self,lyr=None, force=None):
@@ -849,9 +859,16 @@ class GoogleDriveLayer(QObject):
         if not mapbox_style:
             logger("migrating mapbox style")
             self.service_sheet.set_style_mapbox(self.layer_style_to_json(self.lyr))
-        if not force and not self.dirty:
-            pass
-            #return
+        
+        if not force and not self.dirty and not self.restyled:
+            return
+
+        if self.restyled:
+            self.service_sheet.set_style_qgis(self.layer_style_to_xml(self.lyr))
+            self.service_sheet.set_style_sld(self.SLD_to_xml(self.lyr))
+            self.service_sheet.set_style_mapbox(self.layer_style_to_json(self.lyr))
+            self.saveMetadataState()
+        
         canvas = QgsMapCanvas()
         canvas.resize(QSize(600,600))
         canvas.setCanvasColor(Qt.white)
@@ -887,16 +904,20 @@ class GoogleDriveLayer(QObject):
         worldfile = QgsMapSettingsUtils.worldFileContent(settings)
         lonlat_min = self.transformToWGS84(QgsPointXY(canvas.extent().xMinimum(), canvas.extent().yMinimum()))
         lonlat_max = self.transformToWGS84(QgsPointXY(canvas.extent().xMaximum(), canvas.extent().yMaximum()))
-        extent = [lonlat_min.x(),lonlat_min.y(),lonlat_max.x(),lonlat_max.y()]
+        keymap_extent = [lonlat_min.x(),lonlat_min.y(),lonlat_max.x(),lonlat_max.y()]
+        
         os.remove(tmp_path)
         #update layer metadata
         summary_id = self.service_sheet.add_sheet('summary', no_grid=True)
         appPropsUpdate = [
             ["keymap",webLink],
             ["worldfile",pack(worldfile)],
-            ["keymap_extent", json.dumps(extent)]
+            ["keymap_extent", json.dumps(keymap_extent)]
         ]
         res = self.service_sheet.update_appProperties(self.spreadsheet_id,appPropsUpdate)
+        
+        self.saveMetadataState(metadata=self.get_layer_metadata())
+        self.parent.public_db.setKey(self.spreadsheet_id, dict(self.get_layer_metadata()+appPropsUpdate),only_update=True)
         #merge cells to visualize snapshot and aaply image snapshot
         request_body = {
             'requests': [{
