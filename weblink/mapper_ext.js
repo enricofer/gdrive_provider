@@ -8,6 +8,9 @@ Ext.require([
     //'Ext.ux.grid.feature.Searching'
 ]);
 
+Ext.Loader.loadScript({
+    url: 'https://rawgit.com/geoext/geoext3/master/classic/selection/FeatureModel.js'
+});
 
 var layer_projection = 'EPSG:4326';
 var view_projection = 'EPSG:3857';
@@ -18,6 +21,7 @@ var content_store;
 var detail_store;
 var public_layers;
 var georef_overlay;
+var layer_collection;
 var form, group_panel, detail_panel, description;
 var zoomto;
 
@@ -47,6 +51,26 @@ function decompress(b64_zipped){
     return String.fromCharCode.apply(null, new Uint16Array(inflated));
 } 
 
+var yellowStyle = new ol.style.Style({
+    fill: new ol.style.Fill({
+        color: 'rgba(255, 255, 255, 0)'
+    }),
+    stroke: new ol.style.Stroke({
+        color: '#ffff00',
+        width: 2
+    })
+})
+
+var redStyle = new ol.style.Style({
+    fill: new ol.style.Fill({
+        color: 'rgba(255, 255, 255, 0)'
+    }),
+    stroke: new ol.style.Stroke({
+        color: '#ff0000',
+        width: 4
+    })
+})
+
 Ext.application({
     name: 'googis',
     launch: function() {
@@ -69,7 +93,7 @@ Ext.application({
             var $progressBar = $('.progress-bar');
             var WKT_format = new ol.format.WKT();
             var GeoJSON_format = new ol.format.GeoJSON();
-            var collection = new ol.Collection();
+            layer_collection = new ol.Collection();
             public_layers = {};
             var data_array = data["keys"].toArray();
             var i, k, rows = data_array.length;
@@ -89,7 +113,7 @@ Ext.application({
                         name: metadata.layer_name
                     });
                     pub_layer_feat.setProperties(metadata)
-                    collection.push(pub_layer_feat);
+                    layer_collection.push(pub_layer_feat);
                 }
                 setTimeout(function(){
                     progress_percent = Math.trunc(i*100/rows);
@@ -100,23 +124,20 @@ Ext.application({
 
             googis_layer = new ol.layer.Vector({
                 source: new ol.source.Vector({
-                    features: collection,
+                    features: layer_collection,
                     projection: view_projection
                 }),
                 title: "GOOGIS public layers",
                 visible: true,
-                style: new ol.style.Style({
-                    fill: new ol.style.Fill({
-                        color: 'rgba(255, 255, 255, 0)'
-                    }),
-                    stroke: new ol.style.Stroke({
-                        color: '#ffff00',
-                        width: 3
-                    })
-                })
+                style: yellowStyle
+            });
+
+            georef_overlay = new ol.layer.Image({
+              title: 'preview overlay',
             });
             
             googis_map.addLayer(googis_layer);
+            googis_map.addLayer(georef_overlay);
                 
             var googis_extent = googis_layer.getSource().getExtent();
             googis_map.getView().fit(googis_extent, googis_map.getSize());
@@ -193,24 +214,24 @@ Ext.application({
         }
 
         function syncSourceView () {
-            var content = [];
+            var view_collection = new ol.Collection();
             var current_extent = googis_map.getView().calculateExtent(googis_map.getSize());
             googis_layer.getSource().forEachFeatureInExtent(current_extent, function(feature){
-                item = {layer:feature.get('layer_name'),fid:feature.get('fid')};
-                content.push(item);
+                view_collection.push(feature);
             }); 
-            console.log("content",content);
-            content_store = Ext.create('Ext.data.Store', {
-                storeId: 'detail',
-                fields:[ 'layer','fid'],
-                data: content
+
+            // create feature store by passing a feature collection
+            content_store = Ext.create('GeoExt.data.store.Features', {
+                fields: ['layer_name','fid'],
+                model: 'GeoExt.data.model.Feature',
+                features: view_collection,
+                map: googis_map,
+                createLayer: false,
+                style: yellowStyle
             });
+
             Ext.ComponentMgr.get('visible_layers').setStore(content_store);  
         }
-
-        georef_overlay = new ol.layer.Image({
-          title: 'preview overlay',
-        });
 
         googis_map = new ol.Map({
             layers: [
@@ -227,8 +248,7 @@ Ext.application({
                         source: new ol.source.XYZ({
                             "url": "https://tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png"
                         })
-                    }),
-                    georef_overlay
+                    })
             ],
             controls: ol.control.defaults().extend([
                 new ol.control.MousePosition(),
@@ -268,41 +288,52 @@ Ext.application({
             id: 'visible_layers',
             features: [searching],
             hideHeaders:true, 
-            store: Ext.data.StoreManager.lookup('content_store'),
+            store: content_store, //Ext.data.StoreManager.lookup('content_store'),
             columns: [
-                { text: 'layer', dataIndex: 'layer', flex: 1 }
+                { text: 'layer', dataIndex: 'layer_name', flex: 1 }
             ],
             height: 500,
             width: 300,
+            selModel: {
+                type: 'featuremodel',
+                mode: 'SINGLE',
+                mapSelection: false,
+                map: googis_map,
+                selectStyle: redStyle
+            },
             listeners: {
-                rowclick: function(grd, record) {
+                'rowclick': function(grd, record) {
                     console.log(record.data.fid);
-                    var layer_clicked = public_layers[record.data.fid];
-                    console.log(layer_clicked);
+                    var layer_clicked_data = public_layers[record.data.fid];
+                    console.log(layer_clicked_data);
                     var details = [
-                        {key: "View layer", value: ""}, //"?spreadsheet_id="+layer_clicked["gdrive_id"]},
-                        {key: "Zoom to extent", value: ""} //layer_clicked["keymap_extent"]
+                        {key: "View layer", value: ""}, //"?spreadsheet_id="+layer_clicked_data["gdrive_id"]},
+                        {key: "Zoom to extent", value: ""} //layer_clicked_data["keymap_extent"]
                     ]
-                    for(var key in layer_clicked){
-                        if (!layer_clicked.hasOwnProperty(key)) continue;
-                        details.push({key:key,value:layer_clicked[key]})
+
+                    detail_panel.setTitle(layer_clicked_data["layer_name"])
+
+                    for(var key in layer_clicked_data){
+                        if (!layer_clicked_data.hasOwnProperty(key)) continue;
+                        details.push({key:key,value:layer_clicked_data[key]})
                     }
                     //details["extent"] = ">" + details["extent"]
 
                     detail_store = Ext.create('Ext.data.Store', {
                         storeId: 'details',
                         fields:[ 'key','value'],
-                        data: details
+                        data: details,
+                        autoLoad: true
                     });
                     Ext.ComponentMgr.get('layer_detail').setStore(detail_store);  
 
                     var georef_overlay_source =  new ol.source.ImageStatic({
-                        url: layer_clicked.keymap,
+                        url: layer_clicked_data.keymap,
                         projection: layer_projection,
-                        imageExtent: JSON.parse(layer_clicked.keymap_extent),
+                        imageExtent: JSON.parse(layer_clicked_data.keymap_extent),
                     })
                     georef_overlay.setSource(georef_overlay_source)
-                    console.log(layer_clicked.keymap,JSON.parse(layer_clicked.keymap_extent))
+                    console.log(layer_clicked_data.keymap,JSON.parse(layer_clicked_data.keymap_extent))
                 }
             }
         });
@@ -313,22 +344,26 @@ Ext.application({
             store: Ext.data.StoreManager.lookup('detail_store'),
             hideHeaders:true, 
             columns: [
-                { text: 'key', dataIndex: 'key', flex: 1 },
                 { 
-                    text: 'value', 
-                    dataIndex: 'value', 
+                    text: 'key', 
+                    dataIndex: 'key', 
                     flex: 1,
                     renderer: function(value, metaData, record, row, col, store, gridView){
                         // not supported yet
-                        switch (value.toString().substring(0, 1)) {
-                            case "?":
-                                return '<a target=”_blank” href="https://enricofer.github.io/gdrive_provider/weblink/converter.html'+value+'">View layer</a>';
-                            case ">": 
-                                return '<a href="#">Zoom to</a>'
+                        switch (value) {
+                            case "View layer":
+                                return '<a href="#">View layer</a>';
+                            case "Zoom to extent": 
+                                return '<a href="#">Zoom to extent</a>'
                             default:
                                 return value
                         }
                     } 
+                },
+                { 
+                    text: 'value', 
+                    dataIndex: 'value', 
+                    flex: 1
                 },
             ],
             height: 500,
@@ -345,6 +380,7 @@ Ext.application({
                         case "Zoom to extent":
                             var record = this.store.findRecord('key', 'keymap_extent')
                             if (record) {
+                                list_panel.getSelectionModel().deselectAll();
                                 zoomto(record.data["value"]);
                             }
                             break;
