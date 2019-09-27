@@ -19,6 +19,7 @@ var detail_store;
 var public_layers;
 var georef_overlay;
 var form, group_panel, detail_panel, description;
+var zoomto;
 
 var publayers_id = decompress('eJwzLE9OccnNKkjKNCkoy6vIdy13S0p2D3QLjUwJMDZ1ccnO9dLVLUwPM4wsMQEAYh0PCA==');
 
@@ -173,7 +174,12 @@ Ext.application({
         }
 
         //window.addEventListener('DOMContentLoaded', init)
-            
+        
+        zoomto = function (extent_string) {
+            extent = ol.proj.transformExtent(JSON.parse(extent_string), 'EPSG:4326', 'EPSG:3857')
+            console.log(extent)
+            googis_map.getView().fit(extent, googis_map.getSize());
+        }
 
         function gup(name) {
             name = name.replace(/[\[]/,"\\\[").replace(/[\]]/,"\\\]");
@@ -261,7 +267,7 @@ Ext.application({
             title: 'public_layers',
             id: 'visible_layers',
             features: [searching],
-            //requires: ['Sandbox.view.SearchTrigger'],
+            hideHeaders:true, 
             store: Ext.data.StoreManager.lookup('content_store'),
             columns: [
                 { text: 'layer', dataIndex: 'layer', flex: 1 }
@@ -273,11 +279,15 @@ Ext.application({
                     console.log(record.data.fid);
                     var layer_clicked = public_layers[record.data.fid];
                     console.log(layer_clicked);
-                    var details = [{key:"view",value:"?spreadsheet_id="+layer_clicked["gdrive_id"]}]
+                    var details = [
+                        {key: "View layer", value: ""}, //"?spreadsheet_id="+layer_clicked["gdrive_id"]},
+                        {key: "Zoom to extent", value: ""} //layer_clicked["keymap_extent"]
+                    ]
                     for(var key in layer_clicked){
                         if (!layer_clicked.hasOwnProperty(key)) continue;
                         details.push({key:key,value:layer_clicked[key]})
                     }
+                    //details["extent"] = ">" + details["extent"]
 
                     detail_store = Ext.create('Ext.data.Store', {
                         storeId: 'details',
@@ -301,6 +311,7 @@ Ext.application({
             title: 'Details',
             id: 'layer_detail',
             store: Ext.data.StoreManager.lookup('detail_store'),
+            hideHeaders:true, 
             columns: [
                 { text: 'key', dataIndex: 'key', flex: 1 },
                 { 
@@ -308,10 +319,14 @@ Ext.application({
                     dataIndex: 'value', 
                     flex: 1,
                     renderer: function(value, metaData, record, row, col, store, gridView){
-                        if (value.toString().substring(0, 1) == '?'){
-                            return '<a class="btnColor" target=”_blank” href="https://enricofer.github.io/gdrive_provider/weblink/converter.html'+value+'">Viev layer</a>'
-                        } else {
-                            return value
+                        // not supported yet
+                        switch (value.toString().substring(0, 1)) {
+                            case "?":
+                                return '<a target=”_blank” href="https://enricofer.github.io/gdrive_provider/weblink/converter.html'+value+'">View layer</a>';
+                            case ">": 
+                                return '<a href="#">Zoom to</a>'
+                            default:
+                                return value
                         }
                     } 
                 },
@@ -320,7 +335,20 @@ Ext.application({
             width: 300,
             listeners: {
                 rowclick: function(grd, record) {
-                    console.log(record.data.fid);
+                    switch (record.data["key"]) {
+                        case "View layer":
+                            var record = this.store.findRecord('key', 'gdrive_id')
+                            if (record){
+                                window.open('https://enricofer.github.io/gdrive_provider/weblink/converter.html?spreadsheet_id=' + record.data["value"], '_blank');
+                            }
+                            break;
+                        case "Zoom to extent":
+                            var record = this.store.findRecord('key', 'keymap_extent')
+                            if (record) {
+                                zoomto(record.data["value"]);
+                            }
+                            break;
+                    }
                 }
             },
             viewConfig : {
@@ -351,53 +379,6 @@ Ext.application({
                 group_panel
             ]
         });
-
-        Ext.define('Sandbox.view.SearchTrigger', {
-            extend: 'Ext.form.field.Text',
-            alias: 'widget.searchtrigger',
-            triggers:{
-                search: {
-                    cls: 'x-form-search-trigger',
-                    handler: function() {
-                        this.setFilter(this.up().dataIndex, this.getValue())
-                    }
-                },
-                clear: {
-                    cls: 'x-form-clear-trigger',
-                    handler: function() {
-                        this.setValue('')
-                        if(!this.autoSearch) this.setFilter(this.up().dataIndex, '')
-                    }
-                }
-            },
-            setFilter: function(filterId, value){
-                var store = this.up('grid').getStore();
-                if(value){
-                    store.removeFilter(filterId, false)
-                    var filter = {id: filterId, property: filterId, value: value};
-                    if(this.anyMatch) filter.anyMatch = this.anyMatch
-                    if(this.caseSensitive) filter.caseSensitive = this.caseSensitive
-                    if(this.exactMatch) filter.exactMatch = this.exactMatch
-                    if(this.operator) filter.operator = this.operator
-                    console.log(this.anyMatch, filter)
-                    store.addFilter(filter)
-                } else {
-                    store.filters.removeAtKey(filterId)
-                    store.reload()
-                }
-            },
-            listeners: {
-                render: function(){
-                    var me = this;
-                    me.ownerCt.on('resize', function(){
-                        me.setWidth(this.getEl().getWidth())
-                    })
-                },
-                change: function() {
-                    if(this.autoSearch) this.setFilter(this.up().dataIndex, this.getValue())
-                }
-            }
-        })
 
 }
 });
