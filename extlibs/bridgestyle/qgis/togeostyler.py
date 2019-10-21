@@ -1,7 +1,6 @@
 import os
 import json
 import zipfile
-from qgiscommons2.files import tempFilenameInTempFolder
 from .expressions import walkExpression, UnsupportedExpressionException
 
 try:
@@ -40,14 +39,17 @@ def processLayer(layer):
             rules = [{"name": layer.name(), "symbolizers": [symbolizer]}]
             return  {"name": layer.name(), "rules": rules, "transformation": transformation}
         else:
-            if not isinstance(renderer, QgsRuleBasedRenderer):
-                renderer = QgsRuleBasedRenderer.convertFromRenderer(renderer)
-            if renderer is None:
-                _warnings.append("Unsupported renderer type: %s" % str(renderer))
-                return
-            for rule in renderer.rootRule().children():
-                if rule.active():
-                    rules.append(processRule(rule))
+            if not isinstance(renderer, QgsNullSymbolRenderer):
+                if not isinstance(renderer, QgsRuleBasedRenderer):
+                    ruleRenderer = QgsRuleBasedRenderer.convertFromRenderer(renderer)
+                else:
+                    ruleRenderer = renderer
+                if ruleRenderer is None:
+                    _warnings.append("Unsupported renderer type: %s" % str(renderer))
+                    return
+                for rule in ruleRenderer.rootRule().children():
+                    if rule.active():
+                        rules.append(processRule(rule))
             labelingRule = processLabeling(layer)
             if labelingRule is not None:
                 rules.append(labelingRule)
@@ -189,9 +191,7 @@ def processLabeling(layer):
     exp = settings.getLabelExpression()
     label = _expressionConverter.walkExpression(exp.rootNode())
     symbolizer.update({"color": color,
-                        "offset": [offsetX, offsetY],
                         "font": font,
-                        "anchor": anchor,
                         "label": label,
                         "size": size})
     return {"symbolizers": [symbolizer], "name": "labeling"}
@@ -201,7 +201,9 @@ def processRule(rule):
     name = rule.label()
     ruledef = {"name": name,
             "symbolizers": symbolizers}
-    if not(rule.isElse()):
+    if rule.isElse():
+        ruledef["filter"] = "ELSE"
+    else:
         filt = processExpression(rule.filterExpression())
         if filt is not None:
             ruledef["filter"] = filt
@@ -236,8 +238,8 @@ def _cast(v):
 
 MM2PIXEL = 3.7795275591
 
-def _handleUnits(value, units):
-    if str(value) in ["0", "0.0"]:
+def _handleUnits(value, units, propertyConstant):
+    if propertyConstant == QgsSymbolLayer.PropertyStrokeWidth and str(value) in ["0", "0.0"]:
         return 1 #hairline width
     if units == "MM":
         if isinstance(value, list):
@@ -278,7 +280,7 @@ def _symbolProperty(symbolLayer, name, propertyConstant=-1):
     
     units = symbolLayer.properties().get(name + "_unit")
     if units is not None:
-        v = _handleUnits(v, units)
+        v = _handleUnits(v, units, propertyConstant)
     return _cast(v)
 
 def _toHexColor(color):
@@ -287,6 +289,13 @@ def _toHexColor(color):
         return '#%02x%02x%02x' % (int(r), int(g), int(b))
     except:
         return color
+
+def _opacity(color):
+    try:
+        r,g,b,a = str(color).split(",")
+        return float(a) / 255.
+    except:
+        return 1.0
         
 def _createSymbolizers(symbol):
     opacity = symbol.opacity()
@@ -332,14 +341,23 @@ def _createSymbolizer(sl, opacity):
 def _fontMarkerSymbolizer(sl, opacity):
     color = _toHexColor(sl.properties()["color"])
     fontFamily = _symbolProperty(sl, "font")
-    character = _symbolProperty(sl, "chr", QgsSymbolLayer.PropertyCharacter)
+    character = _symbolProperty(sl, "chr", QgsSymbolLayer.PropertyCharacter)    
     size = _symbolProperty(sl, "size", QgsSymbolLayer.PropertySize)
-
-    symbolizer = {"kind": "Text",
-                    "size": size,
-                    "label": character,
-                    "font": fontFamily,
-                    "color": color}    
+    if len(character) == 1:
+        hexcode = hex(ord(character))
+        name = "ttf://%s#%s" % (fontFamily, hexcode)
+        symbolizer = {"kind": "Mark",
+                "color": color,
+                "wellKnownName": name,
+                "size": ["Div", size, 2] #we use half of the size, since QGIS since to use this as radius, not char height
+                } 
+    else:
+        symbolizer = {"kind": "Text",
+                "size": size,
+                "label": character,
+                "font": fontFamily,
+                "color": color} 
+   
     return symbolizer
 
 def _lineSymbolizer(sl, opacity):
@@ -428,26 +446,23 @@ def _basePointSimbolizer(sl, opacity):
     return symbolizer
 
 wknReplacements = {"regular_star":"star",
-               "cross2": "x",
+               "cross2": "shape://times",
                "equilateral_triangle": "triangle",
                "rectangle": "square",
-               "filled_arrowhead": "ttf://Webdings#0x34",
+               "arrowhead": "shape://oarrow",
+               "filled_arrowhead": "shape://coarrow",
                "line": "shape://vertline",
-               "arrow": "ttf://Wingdings#0xE9",
-               "diamond": "ttf://Wingdings#0x75",
-                "horline":"shape://horline",
-               "vertline":"shape://vertline",
                "cross":"shape://plus",
-               "slash":"shape://slash",
-               "backslash":"shape://backslash",
-               "x": "shape://times"}
+               "cross_filled":"shape://plus"}
 
 def _markGraphic(sl):
     props = sl.properties()
     size = _symbolProperty(sl, "size", QgsSymbolLayer.PropertySize)
     color = _toHexColor(props["color"])
     outlineColor = _toHexColor(props["outline_color"])
-    outlineWidth = _symbolProperty(sl, "outline_width", QgsSymbolLayer.PropertyStrokeWidth)    
+    outlineWidth = _symbolProperty(sl, "outline_width", QgsSymbolLayer.PropertyStrokeWidth)
+    fillOpacity = _opacity(props["color"])
+    strokeOpacity = _opacity(props["outline_color"])
     try:
         path = sl.path()
         global _usedIcons
@@ -456,8 +471,8 @@ def _markGraphic(sl):
         outlineStyle = "solid"
         size = _symbolProperty(sl, "size", QgsSymbolLayer.PropertyWidth)
     except:
-        name = props["name"]
-        name = wknReplacements.get(name, name)
+        name = props["name"] 
+        name = wknReplacements.get(name, name.replace("_", ""))
         outlineStyle = _symbolProperty(sl, "outline_style", QgsSymbolLayer.PropertyStrokeStyle)
         if outlineStyle == "no":
             outlineWidth = 0
@@ -467,7 +482,9 @@ def _markGraphic(sl):
             "wellKnownName": name,
             "size": size,
             "strokeColor": outlineColor,
-            "strokeWidth": outlineWidth            
+            "strokeWidth": outlineWidth,
+            "strokeOpacity": strokeOpacity,
+            "fillOpacity": fillOpacity       
             } 
     if outlineStyle not in ["solid", "no"]:
         mark["strokeDasharray"] = "5 2"

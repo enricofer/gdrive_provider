@@ -204,6 +204,7 @@ class GoogleDriveLayer(QObject):
         #disable memory layers save checking when closing project
         self.lyr.setCustomProperty("googleDriveId", self.spreadsheet_id)
         self.lyr.setCustomProperty("skipMemoryLayersCheck", 1)
+        self.update_summary_sheet()
 
         self.add_records()
 
@@ -851,6 +852,8 @@ class GoogleDriveLayer(QObject):
         Creates a summary sheet with thumbnail, layer metadata and online view link
         '''
         #create a layer snapshot and upload it to google drive
+
+        print("update_summary_sheet")
 
         if not lyr:
             lyr = self.lyr

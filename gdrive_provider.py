@@ -43,7 +43,7 @@ import resources_rc
 # Import the code for the dialog
 from .gdrive_provider_dialog import GoogleDriveProviderDialog, accountDialog, comboDialog, importFromIdDialog, internalBrowser, webMapDialog
 from .gdrive_layer import progressBar, GoogleDriveLayer
-
+from .extlibs.bridgestyle.qgis import layerStyleAsMapbox
 
 import os
 import sys
@@ -291,6 +291,8 @@ class Google_Drive_Provider(object):
         QgsProject.instance().layersWillBeRemoved.connect(self.updateSummarySheet)
 
     def helpAction(self):
+        mapbox_style,icons,warnings = layerStyleAsMapbox(self.iface.activeLayer())
+        print("STYLEEEE",mapbox_style,icons,warnings)
         self.helpBrowser.setWindowFlags(Qt.WindowSystemMenuHint | Qt.WindowTitleHint) 
         self.helpBrowser.setMinimumSize(QSize(900, 600))
         self.helpBrowser.show()

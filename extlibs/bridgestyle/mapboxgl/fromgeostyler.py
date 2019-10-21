@@ -27,7 +27,7 @@ def _toZoomLevel(scale):
 def processLayer(layer):
     allLayers = []
     
-    for rule in layer["rules"]:
+    for rule in layer.get("rules", []):
         layers = processRule(rule, layer["name"])
         allLayers += layers
 
@@ -191,7 +191,6 @@ def _lineSymbolizer(sl, graphicStrokeLayer = 0):
         _warnings.append("Marker lines not supported for Mapbox GL conversion")
         #TODO
 
-    paint["line-offset"] = offset
     if color is None:
         paint["visibility"] = "none"
     else:
@@ -236,7 +235,7 @@ def _markSymbolizer(sl):
         outlineWidth = _symbolProperty(sl, "strokeWidth")
         
         paint = {}
-        paint["circle-radius"] = ["/", size, "2.0"]    
+        paint["circle-radius"] = ["/", size, 2]    
         paint["circle-color"] = color
         paint["circle-opacity"] = opacity
         paint["circle-stroke-width"] = outlineWidth
