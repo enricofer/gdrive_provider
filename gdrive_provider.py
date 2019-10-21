@@ -639,6 +639,7 @@ class Google_Drive_Provider(object):
             reply = QMessageBox.question(None, "Removing " + self.current_metadata['name'], "Do you really want to trash table?", QMessageBox.Yes, QMessageBox.No) 
             if reply == QMessageBox.Yes:
                 self.myDrive.trash_file(self.current_spreadsheet_id)
+                self.public_db.delKey(self.current_spreadsheet_id)
                 if self.thumbnail_id:
                     self.myDrive.trash_file(self.thumbnail_id)
                 self.refresh_available()
