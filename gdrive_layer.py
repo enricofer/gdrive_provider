@@ -155,6 +155,8 @@ class GoogleDriveLayer(QObject):
             self.service_sheet.upload_rows(layer_as_list)
             logger("6")
 
+        self.service_sheet.lockedEntry.connect(self.rollbackRow)
+
         self.reader = self.service_sheet.get_sheet_values()
         self.header = self.reader[0]
         self.service_sheet.update_header()
@@ -452,6 +454,12 @@ class GoogleDriveLayer(QObject):
         self.locking_queue = []
         self.timer = 0
 
+    def rollbackRow(self,row):
+        print ('rollbackRow')
+        print("ROW",row)
+        rollback_row = self.service_sheet.get_line('ROWS',row)
+        print ("Original row", rollback_row)
+
     def rollBack(self):
         """
         before rollback changes status field is cleared and the edits from concurrent user are allowed
@@ -644,6 +652,8 @@ class GoogleDriveLayer(QObject):
 
             if attribute_mods:
                 attribute_mods_result = self.service_sheet.set_protected_multicell(attribute_mods, lockBy=self.client_id)
+                print (attribute_mods)
+                print (attribute_mods_result)
             self.dirty = True
 
     def clean_status_row(self):

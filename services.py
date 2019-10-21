@@ -34,7 +34,7 @@ __copyright__ = 'Copyright 2017, Enrico Ferreguti'
 
 
 #QT specific
-from qgis.PyQt.QtCore import QSettings
+from qgis.PyQt.QtCore import QSettings, QObject, pyqtSignal
 from qgis.PyQt.QtWidgets import QApplication
 
 #QGIS specific
@@ -501,7 +501,9 @@ class service_drive(object):
         return self.service.revisions().update(fileId=fileId, revisionId=revs[-1]['id'], body=update_body).execute()
 
 
-class service_spreadsheet(object):
+class service_spreadsheet(QObject):
+
+    lockedEntry = pyqtSignal(int)
 
     def __init__(self, credentials, spreadsheetId = None, new_sheet_name=None, new_sheet_data=None):
         '''
@@ -514,6 +516,7 @@ class service_spreadsheet(object):
         :param new_sheet_data:
         '''
 
+        super(service_spreadsheet, self).__init__()
         self.credentials = credentials
         self.get_service()
         self.drive = service_drive(credentials)
@@ -760,6 +763,10 @@ class service_spreadsheet(object):
             for valueRange in status_control["valueRanges"]:
                 if not valueRange["values"][0][0] in ('()', None, lockBy):  # check for locked row
                     row = valueRange["range"].split('B')[-1]
+                    del mods_by_row[int(row)]
+                    lockedBy = valueRange["values"][0][0]
+                    logger("Row %s is locked by %s: pending edits not applied" % (row, lockedBy))
+                    self.lockedEntry.emit(int(row))
 
         if mods_by_row.values():
             value_mods_result = self.set_multicell(mods_by_row.values())
