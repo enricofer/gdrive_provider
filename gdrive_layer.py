@@ -29,6 +29,7 @@ from builtins import zip
 from builtins import str
 from builtins import range
 from builtins import object
+
 __author__ = 'enricofer@gmail.com'
 __date__ = '2017-03-24'
 __copyright__ = 'Copyright 2017, Enrico Ferreguti'
@@ -455,10 +456,39 @@ class GoogleDriveLayer(QObject):
         self.timer = 0
 
     def rollbackRow(self,row):
-        print ('rollbackRow')
-        print("ROW",row)
+        logger(str(row))
         rollback_row = self.service_sheet.get_line('ROWS',row)
-        print ("Original row", rollback_row)
+        #print ("Original row", rollback_row)
+        wkt_geom = unpack(rollback_row[0])
+        attrs = {}
+        for attr in range(2,len(rollback_row)):
+            attrs[attr-2] = rollback_row[attr]
+
+        try:
+            #identify feature to rollback
+            feat = next(self.lyr.getFeatures(QgsFeatureRequest(QgsExpression(' "FEATUREID" = %s' % rollback_row[2]))))
+            geom_update = {feat.id(): QgsGeometry.fromWkt(wkt_geom)}
+            #rollback geometry
+            self.lyr.dataProvider().changeGeometryValues(geom_update)
+            #rollback attributes
+            attrs_update = {feat.id():attrs}
+            #print ("UPDATES", geom_update, attrs_update)
+            self.lyr.dataProvider().changeFeatures(attrs_update, geom_update)
+            
+        except:
+            logger("RESTORING DELETED FEATURE")
+            #rollback deleted feat
+            restore_feat = QgsFeature(self.lyr.fields())
+            restore_feat.setGeometry(QgsGeometry.fromWkt(wkt_geom))
+            for key,attr in attrs.items():
+                logger(str(key)+str(attr))
+                restore_feat.setAttribute(key, attr)
+            self.lyr.dataProvider().addFeatures([restore_feat])
+            
+        self.lyr.triggerRepaint()
+        message = self.iface.messageBar().createMessage("GooGIS plugin:","Feature %d is locked by %s: pending edits not applied" % (rollback_row[2], rollback_row[1]))
+        self.iface.messageBar().pushWidget(message, Qgis.Warning, 5)
+
 
     def rollBack(self):
         """
