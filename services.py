@@ -1322,3 +1322,7 @@ class service_public_layers(service_spreadsheet):
                 metadata["id"] = row[0]
                 clean_keys.append(metadata)
         return clean_keys
+
+    def subscribe(self):
+        # inherith method to disable subscribe to sheet
+        pass
