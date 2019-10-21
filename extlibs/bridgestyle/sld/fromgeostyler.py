@@ -30,7 +30,7 @@ def convert(geostyler):
     featureTypeStyle = SubElement(userStyle, "FeatureTypeStyle")
     if "transformation" in geostyler:
         featureTypeStyle.append(processTransformation(geostyler["transformation"]))
-    for rule in geostyler["rules"]:
+    for rule in geostyler.get("rules", []):
         featureTypeStyle.append(processRule(rule))
     
     sldstring = ElementTree.tostring(root, encoding='utf8', method='xml').decode()
@@ -51,11 +51,16 @@ def processRule(rule):
         if "min" in scale:
             minScale = SubElement(ruleElement, "MinScaleDenominator")
             maxScale.text = scale["min"]
-    filt = convertExpression(rule.get("filter", None))
-    if filt is not None:
-        filterElement = Element("ogc:Filter")
-        filterElement.append(filt)
+    ruleFilter = rule.get("filter", None)
+    if ruleFilter == "ELSE":
+        filterElement = Element("ElseFilter")            
         ruleElement.append(filterElement)
+    else:
+        filt = convertExpression(ruleFilter)
+        if filt is not None:
+            filterElement = Element("ogc:Filter")
+            filterElement.append(filt)
+            ruleElement.append(filterElement)
     symbolizers = _createSymbolizers(rule["symbolizers"])
     ruleElement.extend(symbolizers)
     
@@ -88,17 +93,20 @@ def _createSymbolizer(sl):
     if symbolizerType == "Raster":
         symbolizer = _rasterSymbolizer(sl)        
     
-    geom = _geometryFromSymbolizer(sl)
-    if geom is not None:
-        symbolizer.insert(0, geom)
+    if not isinstance(symbolizer, list):
+        symbolizer = [symbolizer]
+    for s in symbolizer:
+        geom = _geometryFromSymbolizer(sl)
+        if geom is not None:
+            s.insert(0, geom)
 
     return symbolizer
 
-def _symbolProperty(sl, name):
+def _symbolProperty(sl, name, default=None):
     if name in sl:        
         return _processProperty(sl[name])      
     else:
-        return None
+        return default
 
 def _processProperty(value):
     v = convertExpression(value)
@@ -126,9 +134,10 @@ def _addSubElement(parent, tag, value=None, attrib={}):
     return sub
 
 def _addVendorOption(parent, name, value):
-    sub = SubElement(parent, "VendorOption", name=name)
-    _addValueToElement(sub, value)
-    return sub    
+    if value is not None:
+        sub = SubElement(parent, "VendorOption", name=name)
+        _addValueToElement(sub, value)
+        return sub    
 
 def _rasterSymbolizer(sl):
     opacity = sl["opacity"]
@@ -225,11 +234,19 @@ def _lineSymbolizer(sl, graphicStrokeLayer = 0):
         _addCssParameter(stroke, "stroke-opacity", opacity)
         _addCssParameter(stroke, "stroke-linejoin", join)
         _addCssParameter(stroke, "stroke-linecap", cap)    
-        if dasharray is not None:
+        if dasharray is not None:            
+            if cap != "butt":
+                try:
+                    EXTRA_GAP = 2 * width
+                    tokens = [int(v) + EXTRA_GAP if i % 2 else int(v) for i,v in enumerate(dasharray.split(" "))]
+                except: #in case width is not a number, but an expression
+                    GAP_FACTOR = 2
+                    tokens = [int(v) * GAP_FACTOR if i % 2 else int(v) for i,v in enumerate(dasharray.split(" "))]
+                dasharray = " ".join([str(v) for v in tokens])
             _addCssParameter(stroke, "stroke-dasharray", dasharray)
     if offset is not None:
         _addSubElement(root, "PerpendicularOffset", offset)
-    return root
+    return symbolizers
     
 def _geometryFromSymbolizer(sl):
     geomExpr = convertExpression(sl.get("geometry", None))
@@ -279,18 +296,24 @@ def _basePointSimbolizer(sl):
 def _markGraphic(sl):
     color = _symbolProperty(sl, "color")
     outlineColor = _symbolProperty(sl, "strokeColor")
+    fillOpacity = _symbolProperty(sl, "fillOpacity", 1.0)
+    strokeOpacity = _symbolProperty(sl, "strokeOpacity", 1.0)
     outlineWidth = _symbolProperty(sl, "strokeWidth")
     outlineDasharray = _symbolProperty(sl, "strokeDasharray")
     shape = _symbolProperty(sl, "wellKnownName")
     mark = Element("Mark")
     _addSubElement(mark, "WellKnownName", shape)
-    fill = SubElement(mark, "Fill")
-    _addCssParameter(fill, "fill", color)
-    stroke = _addSubElement(mark, "Stroke")    
-    _addCssParameter(stroke, "stroke", outlineColor)
-    _addCssParameter(stroke, "stroke-width", outlineWidth)
-    if outlineDasharray is not None:
-        _addCssParameter(stroke, "stroke-dasharray", outlineDasharray)
+    if fillOpacity:
+        fill = SubElement(mark, "Fill")
+        _addCssParameter(fill, "fill", color)
+        _addCssParameter(fill, "fill-opacity", fillOpacity)
+    stroke = _addSubElement(mark, "Stroke")
+    if strokeOpacity:
+        _addCssParameter(stroke, "stroke", outlineColor)
+        _addCssParameter(stroke, "stroke-width", outlineWidth)
+        _addCssParameter(stroke, "stroke-opacity", strokeOpacity)
+        if outlineDasharray is not None:
+            _addCssParameter(stroke, "stroke-dasharray", outlineDasharray)
 
     return mark
 
@@ -324,8 +347,11 @@ def _baseFillSymbolizer(sl):
     return root
 
 def _graphicFromSymbolizer(sl):
-    symbolizer = _createSymbolizer(sl)
-    return [graph for graph in symbolizer.iter("Graphic")]
+    symbolizers = _createSymbolizer(sl)
+    graphics = []
+    for s in symbolizers:
+        graphics.extend([graph for graph in s.iter("Graphic")])
+    return graphics
         
 def _fillSymbolizer(sl, graphicFillLayer = 0):
     root = _baseFillSymbolizer(sl)

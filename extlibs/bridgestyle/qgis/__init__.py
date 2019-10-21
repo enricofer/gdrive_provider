@@ -2,24 +2,27 @@ import os
 import zipfile
 import json
 from shutil import copyfile
-from ..qgis import togeostyler
-from ..mapboxgl import fromgeostyler
-from bridgestyle import sld
-from bridgestyle import mapboxgl
-from bridgestyle import mapserver
+#from ..qgis import togeostyler
+#from ..mapboxgl import fromgeostyler
+from .. import qgis
+from .. import sld
+from .. import mapboxgl
+from .. import mapserver
+from .  import togeostyler
+from .  import fromgeostyler
 from qgis.core import QgsWkbTypes, QgsMarkerSymbol, QgsSymbol, QgsSVGFillSymbolLayer, QgsSvgMarkerSymbolLayer, QgsRasterLayer, QgsVectorLayer
 from qgis.PyQt.QtCore import QSize, Qt
 from qgis.PyQt.QtGui import QColor, QImage, QPainter
 
 def layerStyleAsSld(layer):
-    geostyler, icons, warnings = togeostyler.convert(layer)
-    sldString, sldWarnings = fromgeostyler.convert(geostyler)        
+    geostyler, icons, warnings = qgis.togeostyler.convert(layer)
+    sldString, sldWarnings = sld.fromgeostyler.convert(geostyler)        
     warnings.extend(sldWarnings)
     return sldString, icons, warnings
 
 def saveLayerStyleAsSld(layer, filename):
     sldstring, icons, warnings = layerStyleAsSld(layer)       
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding='utf-8') as f:
         f.write(sldstring)
     return warnings
 
@@ -33,8 +36,9 @@ def saveLayerStyleAsZippedSld(layer, filename):
     return warnings
 
 def layerStyleAsMapbox(layer):
-    geostyler, icons, warnings = togeostyler.convert(layer)
-    mbox, mbWarnings = fromgeostyler.convert(geostyler)
+    geostyler, icons, warnings = qgis.togeostyler.convert(layer)
+    print ("STYLE",geostyler, icons, warnings)
+    mbox, mbWarnings = mapboxgl.fromgeostyler.convert(geostyler)
     warnings.extend(mbWarnings)
     return mbox, icons, warnings
 
@@ -42,40 +46,35 @@ def layerStyleAsMapboxFolder(layer, folder):
     geostyler, icons, warnings = qgis.togeostyler.convert(layer)
     mbox, mbWarnings = mapboxgl.fromgeostyler.convert(geostyler)    
     filename = os.path.join(folder, "style.mapbox")
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding='utf-8') as f:
         f.write(mbox)
     saveSpritesSheet(icons, folder)
     return warnings
     
 def layerStyleAsMapfile(layer):
     geostyler, icons, warnings = qgis.togeostyler.convert(layer)
-    mserver, msWarnings = mapserver.fromgeostyler.convert(geostyler)
+    mserver, mserverSymbols, msWarnings = mapserver.fromgeostyler.convert(geostyler)
     warnings.extend(msWarnings)
-    filename = os.path.basename(layer.source())
-    filename = os.path.splitext(filename)[0] + ".shp"
-    mserver = mserver.replace("{data}", filename)
-    layerType = "TODO:fill this"
-    if isinstance(layer, QgsRasterLayer):
-        layerType = "raster"
-    elif isinstance(layer, QgsVectorLayer):        
-        layerType = QgsWkbTypes.geometryDisplayString(layer.geometryType())
-    mserver = mserver.replace("{layertype}", layerType)
-    return mserver, icons, warnings
-    
+    return mserver, mserverSymbols, icons, warnings
 
-def layerStyleAsMapfileFolder(layer, layerFilename, folder):
+def layerStyleAsMapfileFolder(layer, folder, additional=None):
     geostyler, icons, warnings = qgis.togeostyler.convert(layer)
-    mserver, msWarnings = mapserver.fromgeostyler.convert(geostyler)
-    warnings.extend(msWarnings)    
-    mserver = mserver.replace("{data}", layerFilename)
-    mserver = mserver.replace("{geometrytype}", QgsWkbTypes.geometryDisplayString(layer.geometryType()))
-    filename = os.path.join(folder, "style.map")
-    with open(filename, "w") as f:
-        f.write(mserver)
+    mserverDict, mserverSymbolsDict, msWarnings = mapserver.fromgeostyler.convertToDict(geostyler)
+    warnings.extend(msWarnings)
+    additional = additional or {} 
+    mserverDict["LAYER"].update(additional)
+    mapfile = mapserver.fromgeostyler.convertDictToMapfile(mserverDict)
+    symbols = mapserver.fromgeostyler.convertDictToMapfile({"SYMBOLS": mserverSymbolsDict})
+    filename = os.path.join(folder, layer.name() + ".txt")
+    with open(filename, "w", encoding='utf-8') as f:
+        f.write(mapfile)
+    filename = os.path.join(folder, layer.name() + "_symbols.txt")
+    with open(filename, "w", encoding='utf-8') as f:
+        f.write(symbols)
     for icon in icons:
         dst = os.path.join(folder, os.path.basename(icon))
         copyfile(icon, dst)
-    return warnings    
+    return warnings
 
 NO_ICON = "no_icon"
 
