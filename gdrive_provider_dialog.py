@@ -70,6 +70,10 @@ class GoogleDriveProviderDialog(QtWidgets.QDialog, FORM_CLASS1):
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
 
+    def show(self):
+        super(GoogleDriveProviderDialog, self).show()
+        self.setWindowState(Qt.WindowActive) 
+
 
 class accountDialog(QtWidgets.QDialog, FORM_CLASS2):
     def __init__(self, parent=None, account='', error=None):
