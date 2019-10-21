@@ -69,6 +69,8 @@ class GoogleDriveProviderDialog(QtWidgets.QDialog, FORM_CLASS1):
         # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
 
     def show(self):
         super(GoogleDriveProviderDialog, self).show()
