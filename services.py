@@ -891,6 +891,21 @@ class service_spreadsheet(QObject):
                                                            valueInputOption='USER_ENTERED').execute()
         return result
 
+    def set_precision(self,precision):
+        '''
+        method to set geometry decimal precision in the dedicated setting sheet slot
+        :param precision:
+        :return: None
+        '''
+        self.set_sheet_cell("settings!D2",precision)
+
+    def precision(self):
+        '''
+        method to get current geometry decimal precision from the dedicated setting sheet slot
+        :return: precision
+        '''
+        return self.sheet_cell("settings!D2")
+
     def set_crs(self,crs):
         '''
         method to set layer crs in the dedicated setting sheet slot

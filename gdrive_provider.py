@@ -289,6 +289,7 @@ class Google_Drive_Provider(object):
         #QgsProject.instance().layerLoaded.connect(self.loadGDriveLayers)
         QgsProject.instance().readProject.connect(self.loadGDriveLayers)
         QgsProject.instance().layersWillBeRemoved.connect(self.updateSummarySheet)
+        self.geometry_precision = 17
 
     def helpAction(self):
         mapbox_style,icons,warnings = layerStyleAsMapbox(self.iface.activeLayer())
@@ -745,6 +746,7 @@ class Google_Drive_Provider(object):
                 store_metadata = self.current_metadata['appProperties']
                 #for newkey in ["weblink", "keymap_extent", ]:
                 #    store_metadata[newkey] = self.current_metadata[newkey]
+                store_metadata['gdrive_id'] = current_spreadsheet_id
                 store_metadata.pop("isGOOGISsheet")
                 self.public_db.setKey(self.current_spreadsheet_id, store_metadata)
             else:
@@ -770,21 +772,23 @@ class Google_Drive_Provider(object):
         :param error:
         """
         self.dlg.mainDialogProgressBar.show()
-        result = accountDialog.get_new_account(self.client_id, error=error)
-        if result:
+        account, precision = accountDialog.get_new_account(self.client_id, error=error, precision=self.geometry_precision)
+        if account:
             self.authorization = google_authorization(self, SCOPES, os.path.join(self.plugin_dir, 'credentials'),
-                                                      APPLICATION_NAME, result)
+                                                      APPLICATION_NAME, account)
             self.myDrive = service_drive(self.authorization)
             self.public_db = service_public_layers(self.authorization)
             
             if not self.myDrive:
                 self.updateAccountAction(self, error=True)
-            if result != self.client_id:
-                self.client_id = result
+            if account != self.client_id:
+                self.client_id = account
                 s = QSettings()
                 s.setValue("GooGIS/gdrive_account", self.client_id)
                 self.remove_GooGIS_layers()
                 self.run()
+            self.geometry_precision = precision
+
         self.dlg.mainDialogProgressBar.hide()
 
 
@@ -877,7 +881,7 @@ class Google_Drive_Provider(object):
             self.updateAccountAction() 
         
         if not self.checkLayerGeometrySize(layer):
-            reply = QMessageBox.question(None, "Complex Geometries", "The selected features have complex geometries that can't be stored in googis layers and will be lost.\n The encoded geometry lenght should be less than 50000 chars and should be simplified before being stored in google drive.\n Do you really want to continue losing the selected features?", QMessageBox.Yes, QMessageBox.No) 
+            reply = QMessageBox.question(None, "Complex Geometries", "The selected features have complex geometries that can't be stored in googis layers and will be lost.\n The encoded geometry lenght should be less than 50000 chars and should be simplified before being stored in google drive.\nA lower geometry precision can be configured in connection dialog to decrease geometry size\n Do you really want to continue losing the selected features?", QMessageBox.Yes, QMessageBox.No) 
             if reply == QMessageBox.No:
                 return          
         #try:
@@ -887,7 +891,7 @@ class Google_Drive_Provider(object):
         self.myDrive.configure_service()
         QApplication.processEvents()
         
-        self.gdrive_layer = GoogleDriveLayer(self, self.authorization, layer.name(), importing_layer=layer)
+        self.gdrive_layer = GoogleDriveLayer(self, self.authorization, layer.name(), importing_layer=layer, precision=self.geometry_precision)
         QApplication.processEvents()
         
         self.refresh_available()
@@ -904,8 +908,9 @@ class Google_Drive_Provider(object):
 
     def checkLayerGeometrySize(self,layer):
         selected_fids = []
+        print ("self.geometry_precision",self.geometry_precision)
         for feat in layer.getFeatures():
-            encoded_geom = pack(feat.geometry().asWkt())
+            encoded_geom = pack(feat.geometry().asWkt(precision = self.geometry_precision))
             if len(encoded_geom) > 50000:
                 selected_fids.append(feat.id())
         if selected_fids:

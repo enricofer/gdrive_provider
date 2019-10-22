@@ -78,7 +78,7 @@ class GoogleDriveProviderDialog(QtWidgets.QDialog, FORM_CLASS1):
 
 
 class accountDialog(QtWidgets.QDialog, FORM_CLASS2):
-    def __init__(self, parent=None, account='', error=None):
+    def __init__(self, parent=None, account='', error=None, precision=17):
         """Constructor."""
         super(accountDialog, self).__init__(parent)
         # Set up the user interface from Designer.
@@ -95,6 +95,7 @@ class accountDialog(QtWidgets.QDialog, FORM_CLASS2):
         self.labelTerms.setTextFormat(QtCore.Qt.RichText)
         self.labelTerms.setTextInteractionFlags(QtCore.Qt.TextBrowserInteraction)
         self.labelTerms.setOpenExternalLinks(True)
+        self.precision.setText(str(precision))
 
 
         s = QtCore.QSettings()
@@ -132,7 +133,7 @@ class accountDialog(QtWidgets.QDialog, FORM_CLASS2):
 
 
     def acceptedAction(self):
-        self.result = self.gdriveAccount.text()
+        self.result = (self.gdriveAccount.text(),int(self.precision.text()))
         self.close()
         self.acceptedFlag = True
 
@@ -141,8 +142,8 @@ class accountDialog(QtWidgets.QDialog, FORM_CLASS2):
         self.acceptedFlag = None
 
     @staticmethod
-    def get_new_account(account, error=None):
-        dialog = accountDialog(account=account, error=error)
+    def get_new_account(account, error=None,  precision=17):
+        dialog = accountDialog(account=account, error=error, precision=precision)
         dialog.setWindowFlags(Qt.WindowSystemMenuHint | Qt.WindowTitleHint) 
         
         result = dialog.exec_()

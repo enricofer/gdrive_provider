@@ -114,7 +114,7 @@ class GoogleDriveLayer(QObject):
     doing_attr_update = False
     geom_types = ("Point", "LineString", "Polygon","Unknown","NoGeometry")
 
-    def __init__(self, parent, authorization, layer_name, spreadsheet_id = None, loading_layer = None, importing_layer = None, crs_def = None, geom_type = None, test = None):
+    def __init__(self, parent, authorization, layer_name, spreadsheet_id = None, loading_layer = None, importing_layer = None, crs_def = None, geom_type = None, test = None, precision=17):
         '''
         Initialize the layer by reading the Google drive sheet, creating a memory
         layer, and adding records to it, optionally used fo layer export to google drive
@@ -132,14 +132,17 @@ class GoogleDriveLayer(QObject):
         self.test = test
         self.parent = parent
         self.iface = parent.iface
+        self.precision = None
         bar = progressBar(self, 'loading google drive layer')
         self.service_drive = service_drive(authorization)
         self.client_id = authorization.client_id
         self.authorization = authorization
+        print ("precision", precision)
         if spreadsheet_id:
             self.spreadsheet_id = spreadsheet_id
             self.service_sheet = service_spreadsheet(authorization, self.spreadsheet_id)
         elif importing_layer:
+            self.precision = precision
             layer_as_list = self.qgis_layer_to_list(importing_layer)
             logger("1")
             self.service_sheet = service_spreadsheet(authorization, new_sheet_name=importing_layer.name(),new_sheet_data=True)
@@ -150,6 +153,7 @@ class GoogleDriveLayer(QObject):
             self.service_sheet.set_style_qgis(self.layer_style_to_xml(importing_layer))
             self.service_sheet.set_style_sld(self.SLD_to_xml(importing_layer))
             self.service_sheet.set_style_mapbox(self.layer_style_to_json(importing_layer))
+            self.service_sheet.set_precision(precision)
             self.dirty = True
             self.saveFieldTypes(importing_layer.fields())  
             logger("5")
@@ -219,6 +223,9 @@ class GoogleDriveLayer(QObject):
         
         self.lyr.setAbstract(self.service_sheet.abstract())
         self.lyr.gdrive_control = self
+
+        if not self.precision:
+            self.precision = self.service_sheet.precision()
 
         bar.stop("Layer %s succesfully loaded" % layer_name)
 
@@ -591,7 +598,7 @@ class GoogleDriveLayer(QObject):
             self.lyr.dataProvider().changeAttributeValues({feature.id() : {0: new_fid}})
             feature.setAttribute(0, new_fid+count)
             new_row_dict = {}.fromkeys(self.service_sheet.header,'()')
-            new_row_dict['WKTGEOMETRY'] = pack(feature.geometry().asWkt())
+            new_row_dict['WKTGEOMETRY'] = pack(feature.geometry().asWkt(precision=self.precision))
             new_row_dict['STATUS'] = '()'
             for i,item in enumerate(feature.attributes()):
                 fieldName = self.lyr.fields().at(i).name()
@@ -643,7 +650,7 @@ class GoogleDriveLayer(QObject):
         for fid,geom in geom_map.items():
             feature_changing = next(self.lyr.getFeatures(QgsFeatureRequest(fid)))
             row_id = feature_changing[0]
-            wkt = geom.asWkt(precision=10)
+            wkt = geom.asWkt(precision=self.precision)
             geometry_mod.append(('WKTGEOMETRY',row_id, pack(wkt) ))
             logger ("Updated FEATUREID %s geometry" % row_id)
             self.changes_log.append('%s|%s' % ('update_geometry', str(row_id)))
@@ -717,7 +724,7 @@ class GoogleDriveLayer(QObject):
             break
         writer.writerow(row)
         for feat in qgis_layer.getFeatures():
-            row = [pack(feat.geometry().asWkt(precision=10)),feat.id(),"()"]
+            row = [pack(feat.geometry().asWkt(precision=self.precision)),feat.id(),"()"]
             for field in feat.fields().toList():
                 if feat[field.name()] == qgis.core.NULL:
                     content = "()"
@@ -746,7 +753,7 @@ class GoogleDriveLayer(QObject):
             break
         rows = [row]
         for feat in qgis_layer.getFeatures():
-            row = [pack(feat.geometry().asWkt(precision=10)),"()","=ROW()"] # =ROW() perfect row/featureid correspondance
+            row = [pack(feat.geometry().asWkt(precision=self.precision)),"()","=ROW()"] # =ROW() perfect row/featureid correspondance
             if len(row[0]) > 50000: # ignore features with geometry > 50000 bytes zipped
                 continue
             for field in feat.fields().toList():
