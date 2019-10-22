@@ -137,10 +137,10 @@ class GoogleDriveLayer(QObject):
         self.service_drive = service_drive(authorization)
         self.client_id = authorization.client_id
         self.authorization = authorization
-        print ("precision", precision)
         if spreadsheet_id:
             self.spreadsheet_id = spreadsheet_id
             self.service_sheet = service_spreadsheet(authorization, self.spreadsheet_id)
+            self.precision = self.service_sheet.precision()
         elif importing_layer:
             self.precision = precision
             layer_as_list = self.qgis_layer_to_list(importing_layer)
@@ -223,9 +223,6 @@ class GoogleDriveLayer(QObject):
         
         self.lyr.setAbstract(self.service_sheet.abstract())
         self.lyr.gdrive_control = self
-
-        if not self.precision:
-            self.precision = self.service_sheet.precision()
 
         bar.stop("Layer %s succesfully loaded" % layer_name)
 

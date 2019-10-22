@@ -908,7 +908,6 @@ class Google_Drive_Provider(object):
 
     def checkLayerGeometrySize(self,layer):
         selected_fids = []
-        print ("self.geometry_precision",self.geometry_precision)
         for feat in layer.getFeatures():
             encoded_geom = pack(feat.geometry().asWkt(precision = self.geometry_precision))
             if len(encoded_geom) > 50000:
