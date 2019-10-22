@@ -742,7 +742,9 @@ class Google_Drive_Provider(object):
             publish_state = rw_commander["reader"]["check_anyone_widget"].isChecked() # or rw_commander["writer"]["check_anyone_widget"].isChecked()
             if publish_state:
                 publicLinkContent = ['public link', "https://enricofer.github.io/gdrive_provider/weblink/converter.html?spreadsheet_id="+current_spreadsheet_id]
-                self.myDrive.publish_to_web(self.current_metadata)
+                self.myDrive.publish_to_web(self.current_metadata["id"])
+                if self.thumbnail_id:
+                    self.myDrive.publish_to_web(self.thumbnail_id)
                 store_metadata = self.current_metadata['appProperties']
                 #for newkey in ["weblink", "keymap_extent", ]:
                 #    store_metadata[newkey] = self.current_metadata[newkey]
@@ -751,7 +753,9 @@ class Google_Drive_Provider(object):
                 self.public_db.setKey(self.current_spreadsheet_id, store_metadata)
             else:
                 publicLinkContent = [' ', ' ']
-                self.myDrive.unpublish_to_web(self.current_metadata)
+                self.myDrive.unpublish_to_web(self.current_metadata["id"])
+                if self.thumbnail_id:
+                    self.myDrive.unpublish_to_web(self.thumbnail_id)
                 self.public_db.delKey(self.current_spreadsheet_id)
             service_sheet = service_spreadsheet(self.authorization, spreadsheetId=current_spreadsheet_id)
             range = 'summary!A9:B9'

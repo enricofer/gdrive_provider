@@ -278,14 +278,12 @@ class service_drive(object):
         '''
         logger( "Removed permission: " + json.dumps(self.service.permissions().delete(fileId=spreadsheet_id, permissionId=permission_id).execute()))
 
-    def publish_to_web(self, metadata):
-        spreadsheet_id = metadata["id"]
+    def publish_to_web(self, spreadsheet_id):
         self.add_permission(spreadsheet_id, "anyoneWithLink","reader")
         self.service.revisions().update(fileId=spreadsheet_id, revisionId='head',
                                         body={'published': True, 'publishAuto': True, "publishedOutsideDomain": True,}).execute()
 
-    def unpublish_to_web(self,metadata):
-        spreadsheet_id = metadata["id"]
+    def unpublish_to_web(self,spreadsheet_id):
         self.service.permissions().delete(fileId=spreadsheet_id, permissionId='anyoneWithLink')
         self.service.revisions().update(fileId=spreadsheet_id, revisionId='head',
                                         body={'published': False, 'publishAuto': False, "publishedOutsideDomain": False,}).execute()
