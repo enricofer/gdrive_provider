@@ -373,6 +373,9 @@ Ext.application({
                     switch (record.data["key"]) {
                         case "View layer":
                             var record = this.store.findRecord('key', 'gdrive_id')
+                            if (!record) {
+                                record = this.store.findRecord('key', 'fid')
+                            }
                             if (record){
                                 window.open('https://enricofer.github.io/gdrive_provider/weblink/converter.html?spreadsheet_id=' + record.data["value"], '_blank');
                             }
