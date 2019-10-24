@@ -34,6 +34,27 @@ from qgis.PyQt.QtCore import Qt
 from qgis.gui import QgsMapLayerComboBox
 from qgis.core import QgsMapLayer, QgsNetworkAccessManager, QgsMapLayerProxyModel, QgsMessageLog
 
+KEYMAP_TEMPLATE = '''
+<html>
+<head>
+<style>
+.keymap {{
+    background-image: url("{}");
+    -webkit-background-size: contain;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    width: 100%;
+    height: 100%;
+}}
+</style>
+</head>
+<body>
+<div class="keymap"></div>
+</body>
+</html>
+'''
+
 logger = lambda msg: QgsMessageLog.logMessage("(%s.%s)  %s" % (inspect.stack()[1][0].f_locals['self'].__class__.__name__, inspect.stack()[1][3], msg), 'Google Drive Provider', 0)
 
 FORM_CLASS1, _ = uic.loadUiType(os.path.join(
@@ -315,6 +336,8 @@ class webMapDialog(QtWidgets.QDialog, FORM_CLASS6):
                 self.metadataTable.setItem(0,1,QTableWidgetItem(metadataSet[row]))
         self.metadataTable.resizeColumnsToContents()
         self.metadataTable.horizontalHeader().setStretchLastSection(True)
+        if 'keymap' in metadataSet:
+            self.infobox_keymap.page().currentFrame().setHtml(KEYMAP_TEMPLATE.format(metadataSet['keymap']))
 
     def acceptedAction(self,button):
         if self.publicWebMapsList.selectedItems():

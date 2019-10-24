@@ -41,7 +41,7 @@ from qgis.PyQt.QtGui import QIcon, QPixmap, QCursor
 # Initialize Qt resources from file resources.py
 import resources_rc
 # Import the code for the dialog
-from .gdrive_provider_dialog import GoogleDriveProviderDialog, accountDialog, comboDialog, importFromIdDialog, internalBrowser, webMapDialog
+from .gdrive_provider_dialog import GoogleDriveProviderDialog, accountDialog, comboDialog, importFromIdDialog, internalBrowser, webMapDialog, logger, KEYMAP_TEMPLATE
 from .gdrive_layer import progressBar, GoogleDriveLayer
 from .extlibs.bridgestyle.qgis import layerStyleAsMapbox
 
@@ -67,8 +67,6 @@ except:
 SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive'
 CLIENT_SECRET_FILE = 'GooGIS_client_secret.json'
 APPLICATION_NAME = 'GooGIS plugin'
-
-logger = lambda msg: QgsMessageLog.logMessage("(%s.%s)  %s" % (inspect.stack()[1][0].f_locals['self'].__class__.__name__, inspect.stack()[1][3], msg), 'Google Drive Provider', 0)
 
 def toggleProgressBar(method):
     wraps(method)
@@ -523,27 +521,6 @@ class Google_Drive_Provider(object):
         self.current_spreadsheet_id =  self.available_sheets[item.text()]['id']
         self.current_metadata = self.available_sheets[item.text()]
 
-        page = '''
-<html>
-<head>
-<style>
-.keymap {{
-    background-image: url("{}");
-    -webkit-background-size: contain;
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-position: center;
-    width: 100%;
-    height: 100%;
-}}
-</style>
-</head>
-<body>
-<div class="keymap"></div>
-</body>
-</html>
-        '''
-
         thumbnail_rif = self.myDrive.list_files(mimeTypeFilter='image/png', filename=item.text()+'.png' )
         if thumbnail_rif:
             web_link = 'https://drive.google.com/uc?export=view&id='+ thumbnail_rif[item.text()+'.png']['id']
@@ -552,7 +529,7 @@ class Google_Drive_Provider(object):
             web_link = '_'
             self.thumbnail_id = None
 
-        self.dlg.infobox_keymap.page().currentFrame().setHtml(page.format(web_link))
+        self.dlg.infobox_keymap.page().currentFrame().setHtml(KEYMAP_TEMPLATE.format(web_link))
 
         owners_list = [owner["emailAddress"] for owner in self.current_metadata['owners']]
         owners = " ".join(owners_list)
