@@ -289,8 +289,6 @@ class Google_Drive_Provider(object):
         self.geometry_precision = 17
 
     def helpAction(self):
-        mapbox_style,icons,warnings = layerStyleAsMapbox(self.iface.activeLayer())
-        print("STYLEEEE",mapbox_style,icons,warnings)
         self.helpBrowser.setWindowFlags(Qt.WindowSystemMenuHint | Qt.WindowTitleHint) 
         self.helpBrowser.setMinimumSize(QSize(900, 600))
         self.helpBrowser.show()
