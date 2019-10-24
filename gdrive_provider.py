@@ -246,7 +246,6 @@ class Google_Drive_Provider(object):
         self.dlg.updateReadListButton.setIcon(QIcon(os.path.join(self.plugin_dir,'shared.png')))
         self.dlg.accountButton.clicked.connect(self.updateAccountAction)
         self.dlg.exportToGDriveButton.clicked.connect(self.exportToGDriveAction)
-        self.dlg.importByIdButton.clicked.connect(self.importByIdAction)
         self.dlg.listWidget.itemDoubleClicked.connect(self.run)
         self.dlg.refreshButton.clicked.connect(self.refresh_available)
         self.dlg.webMapLinkButton.clicked.connect(self.webMapLinkAction)

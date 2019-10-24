@@ -280,14 +280,9 @@ class webMapDialog(QtWidgets.QDialog, FORM_CLASS6):
         self.public_db_keys = parent_obj.public_db.listKeys()
         self.buttonBox.addButton(QPushButton('Import layers'), QDialogButtonBox.YesRole)
         self.buttonBox.addButton(QPushButton('Browse weblinks'), QDialogButtonBox.YesRole)
-
-        for idx,public_layers in enumerate(self.public_db_keys):
-            if "layer_name" in public_layers:
-                listItem = QListWidgetItem(public_layers["layer_name"])
-                listItem.setData(Qt.UserRole,idx)
-                self.publicWebMapsList.addItem(listItem)
-
+        self.filterText.textChanged.connect(self.filterPublicLayers)
         self.publicWebMapsList.itemClicked.connect(self.viewMetadata)
+        self.filterPublicLayers()
         logger("browse public layers")
 
         '''
@@ -297,6 +292,16 @@ class webMapDialog(QtWidgets.QDialog, FORM_CLASS6):
                 publicMapItem = QListWidgetItem(QIcon(os.path.join(os.path.dirname(__file__),'globe.png')),map_name,self.publicWebMapsList, QListWidgetItem.UserType)
                 self.publicWebMapsList.addItem(publicMapItem)
         '''
+
+    def filterPublicLayers(self):
+        self.publicWebMapsList.clear()
+        filter = self.filterText.text()
+        for idx,public_layers in enumerate(self.public_db_keys):
+            if "layer_name" in public_layers:
+                if len(filter) < 3 or public_layers["layer_name"].find(filter) != -1 or public_layers["id"].find(filter) != -1:
+                    listItem = QListWidgetItem(public_layers["layer_name"])
+                    listItem.setData(Qt.UserRole,idx)
+                    self.publicWebMapsList.addItem(listItem)
 
     def viewMetadata(self,currentItem):
         metadataSet = self.public_db_keys[currentItem.data(Qt.UserRole)]
