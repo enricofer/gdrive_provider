@@ -151,7 +151,7 @@ class accountDialog(QtWidgets.QDialog, FORM_CLASS2):
         if dialog.acceptedFlag:
             return (dialog.result)
         else:
-            return None
+            return None,None
 
 
 class comboDialog(QtWidgets.QDialog, FORM_CLASS3):

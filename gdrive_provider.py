@@ -777,6 +777,7 @@ class Google_Drive_Provider(object):
         """
         self.dlg.mainDialogProgressBar.show()
         account, precision = accountDialog.get_new_account(self.client_id, error=error, precision=self.geometry_precision)
+        res = False
         if account:
             self.authorization = google_authorization(self, SCOPES, os.path.join(self.plugin_dir, 'credentials'),
                                                       APPLICATION_NAME, account)
@@ -792,8 +793,10 @@ class Google_Drive_Provider(object):
                 self.remove_GooGIS_layers()
                 self.run()
             self.geometry_precision = precision
+            res = True
 
         self.dlg.mainDialogProgressBar.hide()
+        return res
 
 
     def exportToGDriveAction(self):
@@ -848,7 +851,8 @@ class Google_Drive_Provider(object):
         """
 
         if not self.client_id or not self.myDrive:
-            self.updateAccountAction()
+            if not self.updateAccountAction():
+                return
         self.refresh_available()
         self.dlg.setWindowFlags(Qt.WindowSystemMenuHint | Qt.WindowTitleHint) 
         self.dlg.show()
