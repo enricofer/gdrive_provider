@@ -25,15 +25,18 @@ All needed dependencies come with the plugin:
 ## 2. Connect to Google Drive
 
 ![connection dialog](docs/connection.png)
+
 Once installed, the Plugin Icon appears in QGIS toolbar. At the first plugin run, a valid google accout (username@domain) is asked and a Google OAuth2 session started on the predefined browser to authenticate the user and grant to GooGIS application the needed API rights. When the Authentication Flow successfully ended we can come back and continue working on QGIS main application.
 Now clicking on plugin icon the main dialog appears showing the available GooGIS layers. If the provided user never has never accessed before the layers list is empty and some local data have to be exported to remote for sharing.
 
 ## 3. Export a QGIS layer to Google drive
 
 ![connection dialog](docs/upload.png)
+
 First load and give style to a regular qgis layer then export it to GooGIS clicking on "Export to GDrive" button on the main dialog or right clicking on layer menu item and "Duplicate to Google Drive Layer".
 The local layer is converted and exported to a remote layer. Exporting has some limitations: Google drives can store max 400000 cells and max 50000 bytes for a single cell. Large layers with complex geometries could not be correctly exported to gdrive. In this case it is possible to decrease geometry precision default in account connection dialog to minimize the gdrive space required for storing features.
 ![complex features](docs/complex_features.png)
+
 GooGIS use 3 cell per feature to store geometry, feature id and status plus a cell per attribute. A 40000 feature layer with a 7 fields attribute table actually reaches the limit (40000 * (3+7)). 
 Once exported, the layer is Duplicated in Layer Panel, appears in Available GooGIS layers in main Dialog and the current user become layer owner
 
