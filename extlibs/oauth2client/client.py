@@ -38,7 +38,7 @@ from oauth2client import _pkce
 from oauth2client import clientsecrets
 from oauth2client import transport
 
-from gdrive_provider.extlibs.oauth2client import GOOGLE_REVOKE_URI
+from oauth2client import GOOGLE_REVOKE_URI
 
 HAS_OPENSSL = False
 HAS_CRYPTO = False
