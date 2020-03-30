@@ -22,6 +22,10 @@ All needed dependencies come with the plugin:
 - bridgestyle (C)GeoCat bv @volaya
 - ol-mapbox-style (C)various contributors @ahocevar
 
+### Installation
+Waiting for official repository submitting It's possible to clone  or download the plugin code from github: https://github.com/enricofer/gdrive_provider/archive/master.zip
+Avoid installing it directly from QGIS "install from zip" utility. It will throws external libraries exception. Download, unzip and Install directly in profile plugin directory carefully renaming the folder to "gdrive_provider" if different named.
+
 ## 2. Connect to Google Drive
 
 ![connection dialog](docs/connection.png)
