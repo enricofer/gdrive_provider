@@ -39,7 +39,6 @@ from qgis.PyQt.QtCore import QSettings, QTranslator, qVersion, QCoreApplication,
 from qgis.PyQt.QtWidgets import QAction, QDialog, QProgressBar, QDialogButtonBox, QListWidgetItem, QApplication, QTableWidgetItem, QMessageBox
 from qgis.PyQt.QtGui import QIcon, QPixmap, QCursor
 # Initialize Qt resources from file resources.py
-import resources_rc
 # Import the code for the dialog
 from .gdrive_provider_dialog import GoogleDriveProviderDialog, accountDialog, comboDialog, importFromIdDialog, internalBrowser, webMapDialog, logger, KEYMAP_TEMPLATE
 from .gdrive_layer import progressBar, GoogleDriveLayer
