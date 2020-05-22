@@ -63,6 +63,9 @@ from oauth2client import client, GOOGLE_TOKEN_URI
 from oauth2client import tools
 from oauth2client.file import Storage
 
+import google.auth
+from google_auth_oauthlib.flow import Flow
+
 #Plugin modules
 from .utils import slugify
 
@@ -146,7 +149,7 @@ class google_authorization(object):
 
         credentials = self.store.get()
         if not credentials or credentials.invalid:
-            flow = client.flow_from_clientsecrets(self.secret_path, self.scopes, message='Invalid secret or credentials')
+            flow = Flow.from_client_secrets_file(self.secret_path, self.scopes, message='Invalid secret or credentials')
             flow.user_agent = self.application_name
             try:
                 if self.flags:
