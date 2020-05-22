@@ -64,7 +64,7 @@ from oauth2client import tools
 from oauth2client.file import Storage
 
 import google.auth
-from google_auth_oauthlib.flow import Flow
+from google_auth_oauthlib.flow import InstalledAppFlow
 
 #Plugin modules
 from .utils import slugify
@@ -86,9 +86,9 @@ def pack(content):
 def unpack(zipped_content):
     return zlib.decompress(base64.b64decode(zipped_content)).decode("utf-8")
 
-class google_authorization(object):
+pubDbId = unpack('eJwzLE9OccnNKkjKNCkoy6vIdy13S0p2D3QLjUwJMDZ1ccnO9dLVLUwPM4wsMQEAYh0PCA==')
 
-    pubDbId = unpack('eJwzLE9OccnNKkjKNCkoy6vIdy13S0p2D3QLjUwJMDZ1ccnO9dLVLUwPM4wsMQEAYh0PCA==')
+class google_authorization(object):
 
     def __init__(self, parentClass, scopes, credential_dir, application_name, client_id, client_secret_file = 'client_secret.json' ):
         logger ("authorizing: %s %s %s" % (client_id, application_name, credential_dir))
@@ -147,10 +147,13 @@ class google_authorization(object):
             Credentials, the obtained credential.
         """
 
-        credentials = self.store.get()
+        flow = InstalledAppFlow.from_client_secrets_file(self.secret_path, self.scopes)
+        flow.user_agent = self.application_name
+        flow.run_local_server()
+        credentials = flow.credentials
+
+        """
         if not credentials or credentials.invalid:
-            flow = Flow.from_client_secrets_file(self.secret_path, self.scopes, message='Invalid secret or credentials')
-            flow.user_agent = self.application_name
             try:
                 if self.flags:
                     credentials = tools.run_flow(flow, self.store, self.flags)
@@ -159,6 +162,8 @@ class google_authorization(object):
                 logger( 'Storing credentials to ' + self.credential_path)
             except:
                 return None
+        """
+
         return credentials
 
     def getProxyDict(self):
@@ -180,9 +185,10 @@ class service_drive(object):
         :param credentials:
         '''
         self.credentials = credentials
+        self.service = discovery.build('drive', 'v3', credentials=self.credentials)
         #self.configure_service()
-        authorized_http = self.credentials.authorize()
-        self.service = discovery.build('drive', 'v3', http=authorized_http)
+        #authorized_http = self.credentials.authorize()
+        #self.service = discovery.build('drive', 'v3', http=authorized_http)
         self.googis_folder = None
 
     def configure_service(self):
@@ -236,7 +242,7 @@ class service_drive(object):
             self.list_files()
         except:
             logger("renew authorization")
-            self.configure_service()
+            #self.configure_service()
 
     def list_files(self, mimeTypeFilter = 'application/vnd.google-apps.spreadsheet', shared=None, anyone=None, test=None, orderBy='modifiedTime desc', filename=None):
         '''
@@ -585,7 +591,7 @@ class service_spreadsheet(QObject):
         the procedure calls api discovery method and store the speadsheets object
         '''
         discoveryUrl = ('https://sheets.googleapis.com/$discovery/rest?version=v4')
-        self.service = discovery.build('sheets', 'v4', http=self.credentials.authorize(), discoveryServiceUrl=discoveryUrl)
+        self.service = discovery.build('sheets', 'v4', credentials=self.credentials, discoveryServiceUrl=discoveryUrl)
 
     def getSpreadsheetId(self):
         '''
@@ -1300,7 +1306,7 @@ class service_public_layers(service_spreadsheet):
         The class is a convenience wrapper to google drive python module
         :param credentials:
         '''
-        super(service_public_layers, self).__init__(credentials, credentials.pubDbId)
+        super(service_public_layers, self).__init__(credentials, pubDbId)
         self.keysSheetId = self.get_sheets()['keys']
 
     def getKey(self,key):

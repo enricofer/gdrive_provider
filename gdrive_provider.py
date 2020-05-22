@@ -54,7 +54,7 @@ import inspect
 from email.utils import parseaddr
 from functools import wraps
 
-from .services import google_authorization, service_drive, service_spreadsheet, service_public_layers, pack
+from .services import pubDbId, google_authorization, service_drive, service_spreadsheet, service_public_layers, pack
 
 try:
     from pydevd import *
@@ -360,7 +360,7 @@ class Google_Drive_Provider(object):
         #self.sheet_layer = GoogleDriveLayer(self.authorization, sheet_name, sheet_id='1hC8iT7IutoYDVDLlEWF8_op2viNRsUdv8tTVo9RlPkE')
         #gdrive = service_drive(self.authorization)
         #gsheet = service_sheet(self.authorization,'1hC8iT7IutoYDVDLlEWF8_op2viNRsUdv8tTVo9RlPkE')
-        self.myDrive.configure_service()
+        #self.myDrive.configure_service()
         layer_a = QgsVectorLayer(os.path.join(self.plugin_dir,'test','dataset','c0601016_SistemiEcorelazionali.shp'), "layer_a", 'ogr')
         layer_b = QgsVectorLayer(os.path.join(self.plugin_dir,'test','dataset','c0601037_SpecieArboree.shp'), "layer_b", 'ogr')
         layer_c = QgsVectorLayer(os.path.join(self.plugin_dir,'test','dataset','c0509028_LocSitiContaminati.shp'), "layer_c", 'ogr')
@@ -442,7 +442,7 @@ class Google_Drive_Provider(object):
         '''
         Method for refreshing dialog list widget with available GooGIS layers
         '''
-        self.myDrive.configure_service()
+        #self.myDrive.configure_service()
         self.available_sheets = self.myDrive.list_files(orderBy=self.dlg.orderByCombo.itemData(self.dlg.orderByCombo.currentIndex()))
         logger("refreshing panel")
         try:
@@ -458,7 +458,7 @@ class Google_Drive_Provider(object):
         anyoneIcon = QIcon(os.path.join(self.plugin_dir,'globe_gray.png'))
         nullIcon = QIcon(os.path.join(self.plugin_dir,'null.png'))
         for sheet_name, sheet_metadata in self.available_sheets.items():
-            if sheet_metadata["id"] != self.myDrive.credentials.pubDbId:
+            if sheet_metadata["id"] != pubDbId:
                 newItem = QListWidgetItem(QIcon(),sheet_name,self.dlg.listWidget, QListWidgetItem.UserType)
                 if not sheet_metadata["capabilities"]["canEdit"]:
                     font = newItem.font()
@@ -752,8 +752,9 @@ class Google_Drive_Provider(object):
         account, precision = accountDialog.get_new_account(self.client_id, error=error, precision=self.geometry_precision)
         res = False
         if account:
-            self.authorization = google_authorization(self, SCOPES, os.path.join(self.plugin_dir, 'credentials'),
+            auth_process = google_authorization(self, SCOPES, os.path.join(self.plugin_dir, 'credentials'),
                                                       APPLICATION_NAME, account)
+            self.authorization = auth_process.get_credentials()
             self.myDrive = service_drive(self.authorization)
             self.public_db = service_public_layers(self.authorization)
             
@@ -787,7 +788,7 @@ class Google_Drive_Provider(object):
             import_id = importFromIdDialog.getNewId()
             import_id = import_id.strip()
 
-        self.myDrive.configure_service()
+        #self.myDrive.configure_service()
         try:
             response = self.myDrive.service.files().update(fileId=import_id, addParents='root').execute()
             QApplication.processEvents()
@@ -845,7 +846,7 @@ class Google_Drive_Provider(object):
         '''
         sheet_name = item.text()
         sheet_id = self.available_sheets[sheet_name]['id']
-        self.myDrive.configure_service()
+        #self.myDrive.configure_service()
         self.gdrive_layer = GoogleDriveLayer(self, self.authorization, sheet_name, spreadsheet_id=sheet_id)
 
     @toggleProgressBar
@@ -869,7 +870,7 @@ class Google_Drive_Provider(object):
             #Wait cursor
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         
-        self.myDrive.configure_service()
+        #self.myDrive.configure_service()
         QApplication.processEvents()
         
         self.gdrive_layer = GoogleDriveLayer(self, self.authorization, layer.name(), importing_layer=layer, precision=self.geometry_precision)
