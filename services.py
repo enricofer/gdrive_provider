@@ -59,9 +59,6 @@ from string import ascii_uppercase
 #Google API
 from apiclient import discovery
 from apiclient.http import MediaFileUpload, MediaIoBaseUpload
-from oauth2client import client, GOOGLE_TOKEN_URI
-from oauth2client import tools
-from oauth2client.file import Storage
 
 import google.auth
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -98,22 +95,10 @@ class google_authorization(object):
             os.makedirs(credential_dir)
         self.credential_path = os.path.join(credential_dir,client_id.split("@")[0]+"_"+slugify(application_name)+'.json')
         self.secret_path = os.path.join(self.credential_dir,client_secret_file)
-        self.store = Storage(self.credential_path)
         self.scopes = scopes
         self.client_id = client_id
         self.application_name = application_name
         self.proxyConnection()
-
-        try:
-            import argparse
-            parser = tools.argparser
-            #parser = ArgumentParser(prog='', usage=None, description=None, version=None, formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=False)
-            try:
-                self.flags = argparse.ArgumentParser(parents=[tools.argparser]).parse_args()
-            except:
-                self.flags = argparse.Namespace(auth_host_name='localhost', auth_host_port=[8080, 8090], logging_level='ERROR', noauth_local_webserver=False)
-        except ImportError:
-            self.flags = None
     
 
     def proxyConnection(self):      
@@ -151,18 +136,6 @@ class google_authorization(object):
         flow.user_agent = self.application_name
         flow.run_local_server()
         credentials = flow.credentials
-
-        """
-        if not credentials or credentials.invalid:
-            try:
-                if self.flags:
-                    credentials = tools.run_flow(flow, self.store, self.flags)
-                else: # Needed only for compatibility with Python 2.6
-                    credentials = tools.run(flow, self.store)
-                logger( 'Storing credentials to ' + self.credential_path)
-            except:
-                return None
-        """
 
         return credentials
 
